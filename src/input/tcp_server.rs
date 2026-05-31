@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
-use crate::parser::parser::parser;
+use crate::parser::parser::Parser;
 
 pub fn start(addr: &str) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
@@ -38,7 +38,9 @@ fn handle_client(mut stream: TcpStream) {
                 println!("Received {} bytes", bytes_read);
                 println!("{:?}", data);
 
-                let commands = parser(data);
+                let mut parser = Parser::new();
+
+                let commands = parser.feed(&buffer);
 
                 for cmd in commands {
                     println!("{:?}", cmd);
