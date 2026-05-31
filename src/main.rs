@@ -1,3 +1,5 @@
-fn main() {
-    println!("Hello, world!");
+mod input;
+
+fn main() -> std::io::Result<()> {
+    input::tcp_server::start("0.0.0.0:9100")
 }
