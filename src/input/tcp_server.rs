@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use crate::parser::parser::Parser;
+use crate::receipt::builder::ReceiptBuilder;
 
 pub fn start(addr: &str) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
@@ -23,6 +24,9 @@ pub fn start(addr: &str) -> std::io::Result<()> {
 }
 
 fn handle_client(mut stream: TcpStream) {
+    let mut parser = Parser::new();
+    let mut builder = ReceiptBuilder::new();
+
     let mut buffer = [0u8; 4096];
 
     loop {
@@ -38,12 +42,11 @@ fn handle_client(mut stream: TcpStream) {
                 println!("Received {} bytes", bytes_read);
                 println!("{:?}", data);
 
-                let mut parser = Parser::new();
-
-                let commands = parser.feed(&buffer);
+                let commands = parser.feed(data);
 
                 for cmd in commands {
                     println!("{:?}", cmd);
+                    builder.process(&cmd);
                 }
             }
 
@@ -53,4 +56,8 @@ fn handle_client(mut stream: TcpStream) {
             }
         }
     }
+
+    let receipt = builder.build();
+
+    println!("{:#?}", receipt);
 }
