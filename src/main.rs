@@ -12,7 +12,7 @@ fn main() -> eframe::Result<()> {
     let tx_clone = tx.clone();
 
     thread::spawn(|| {
-        if let Err(e) = input::tcp_server::start("127.0.0.1:9100", tx_clone) {
+        if let Err(e) = input::tcp_server::start("127.0.0.1:9102", tx_clone) {
             eprintln!("TCP server error: {}", e);
         }
     });

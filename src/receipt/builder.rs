@@ -3,16 +3,18 @@ use crate::parser::command::{Alignment, Command};
 use super::receipt::{Receipt, ReceiptLine};
 
 pub struct ReceiptBuilder {
+    current_bold: bool,
     current_alignment: Alignment,
-    current_line: String,
+    segments: Vec<(String, bool)>,
     receipt: Receipt,
 }
 
 impl ReceiptBuilder {
     pub fn new() -> Self {
         Self {
+            current_bold: false,
             current_alignment: Alignment::Left,
-            current_line: String::new(),
+            segments: Vec::new(),
             receipt: Receipt::new(),
         }
     }
@@ -21,7 +23,12 @@ impl ReceiptBuilder {
         match command {
             Command::Initialize => {
                 self.current_alignment = Alignment::Left;
-                self.current_line.clear();
+                self.segments.clear();
+                self.current_bold = false;
+            }
+
+            Command::Bold(bold) => {
+                self.current_bold = *bold;
             }
 
             Command::Align(alignment) => {
@@ -29,14 +36,13 @@ impl ReceiptBuilder {
             }
 
             Command::Text(text) => {
-                self.current_line.push_str(&text);
+                self.segments.push((text.clone(), self.current_bold));
             }
 
             Command::LineFeed => {
                 self.flush_current_line();
             }
 
-            Command::Bold(_) => {}
             Command::Cut => {}
         }
     }
@@ -53,15 +59,24 @@ impl ReceiptBuilder {
     }
 
     fn flush_current_line(&mut self) {
-        if self.current_line.is_empty() {
+        if self.segments.is_empty() {
             return;
         }
 
+        let text = self
+            .segments
+            .iter()
+            .map(|(t, _)| t.as_str())
+            .collect::<String>();
+
+        let bold = self.segments.iter().any(|(_, b)| *b);
+
         self.receipt.lines.push(ReceiptLine {
-            text: self.current_line.clone(),
+            text,
             alignment: self.current_alignment,
+            bold,
         });
 
-        self.current_line.clear();
+        self.segments.clear();
     }
 }

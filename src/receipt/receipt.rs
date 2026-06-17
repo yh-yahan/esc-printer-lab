@@ -9,6 +9,7 @@ pub struct Receipt {
 pub struct ReceiptLine {
     pub text: String,
     pub alignment: Alignment,
+    pub bold: bool,
 }
 
 impl Receipt {

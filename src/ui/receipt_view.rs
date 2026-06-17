@@ -6,7 +6,6 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
 
     ui.horizontal(|ui| {
         let receipt_width = 384.0; // 58mm
-        let receipt_min_height = 500.0;
 
         egui::Frame::default()
             .fill(egui::Color32::from_rgb(255, 250, 240))
@@ -14,16 +13,21 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
             .inner_margin(egui::vec2(18.0, 14.0))
             .rounding(egui::CornerRadius::same(4))
             .show(ui, |ui| {
-                ui.set_min_width(receipt_width);
-                ui.set_max_width(receipt_min_height);
+                ui.set_width(receipt_width);
 
                 ui.vertical(|ui| {
                     ui.add_space(8.0);
 
                     for line in &receipt.lines {
+                        let text = if line.bold {
+                            egui::RichText::new(&line.text).strong()
+                        } else {
+                            egui::RichText::new(&line.text)
+                        };
+
                         match line.alignment {
                             crate::parser::command::Alignment::Left => {
-                                ui.label(&line.text);
+                                ui.label(text);
                             }
 
                             crate::parser::command::Alignment::Center => {
@@ -36,13 +40,13 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                     )
                                 });
                                 let text_width = galley.size().x;
-                                let available = ui.available_width();
+                                let paper_width = receipt_width - 36.0;
 
                                 ui.horizontal(|ui| {
-                                    if available > text_width {
-                                        ui.add_space((available - text_width) / 2.0);
+                                    if paper_width > text_width {
+                                        ui.add_space((paper_width - text_width) / 2.0);
                                     }
-                                    ui.label(&line.text);
+                                    ui.label(text);
                                 });
                             }
 
@@ -50,7 +54,7 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        ui.label(&line.text);
+                                        ui.label(text);
                                     },
                                 );
                             }

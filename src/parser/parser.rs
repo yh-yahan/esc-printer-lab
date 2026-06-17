@@ -46,6 +46,7 @@ impl Parser {
             ParserState::Normal => self.handle_normal(byte, commands),
             ParserState::Esc => self.handle_esc(byte, commands),
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
+            ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
         }
     }
 
@@ -75,6 +76,10 @@ impl Parser {
                 self.state = ParserState::Normal;
             }
 
+            0x45 => {
+                self.state = ParserState::EscEmphasis;
+            }
+
             0x61 => {
                 self.state = ParserState::EscAlignment;
             }
@@ -89,13 +94,25 @@ impl Parser {
         self.flush_text(commands);
 
         let align = match byte {
-            0x00 => Alignment::Left,
-            0x01 => Alignment::Center,
-            0x02 => Alignment::Right,
-            _ => Alignment::Left,
+            0x00 => Some(Alignment::Left),
+            0x01 => Some(Alignment::Center),
+            0x02 => Some(Alignment::Right),
+            _ => None,
         };
 
-        commands.push(Command::Align(align));
+        if let Some(align) = align {
+            commands.push(Command::Align(align));
+        }
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_emphasis(&mut self, byte: u8, commands: &mut Vec<Command>) {
+        self.flush_text(commands);
+
+        let enabled = (byte & 0x01) != 0;
+
+        commands.push(Command::Bold(enabled));
+
         self.state = ParserState::Normal;
     }
 }

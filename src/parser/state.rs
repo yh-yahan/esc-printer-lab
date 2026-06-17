@@ -3,4 +3,5 @@ pub enum ParserState {
     Normal,
     Esc,
     EscAlignment,
+    EscEmphasis,
 }
