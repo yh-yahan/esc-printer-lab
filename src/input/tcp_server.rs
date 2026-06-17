@@ -2,8 +2,10 @@ use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 use crate::parser::parser::Parser;
 use crate::receipt::builder::ReceiptBuilder;
+use std::sync::mpsc::Sender;
+use crate::receipt::receipt::Receipt;
 
-pub fn start(addr: &str) -> std::io::Result<()> {
+pub fn start(addr: &str, tx: Sender<Receipt>) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
 
     for stream in listener.incoming() {
@@ -11,7 +13,7 @@ pub fn start(addr: &str) -> std::io::Result<()> {
             Ok(stream) => {
                 println!("Client connected");
 
-                handle_client(stream);
+                handle_client(stream, &tx);
             }
 
             Err(e) => {
@@ -23,7 +25,7 @@ pub fn start(addr: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, tx: &Sender<Receipt>) {
     let mut parser = Parser::new();
     let mut builder = ReceiptBuilder::new();
 
@@ -60,4 +62,5 @@ fn handle_client(mut stream: TcpStream) {
     let receipt = builder.build();
 
     println!("{:#?}", receipt);
+    tx.send(receipt).ok();
 }
