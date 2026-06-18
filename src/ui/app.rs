@@ -3,12 +3,12 @@ use std::sync::mpsc::Receiver;
 use crate::receipt::receipt::Receipt;
 use crate::ui::receipt_view::render_receipt;
 
-pub struct MainWindow {
+pub struct App {
     rx: Receiver<Receipt>,
     receipts: Vec<Receipt>,
 }
 
-impl MainWindow {
+impl App {
     pub fn new(rx: Receiver<Receipt>) -> Self {
         Self {
             rx,
@@ -17,7 +17,7 @@ impl MainWindow {
     }
 }
 
-impl eframe::App for MainWindow {
+impl eframe::App for App {
     fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(receipt) = self.rx.try_recv() {
             self.receipts.push(receipt);

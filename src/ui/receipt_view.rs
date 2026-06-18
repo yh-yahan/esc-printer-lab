@@ -5,7 +5,7 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
     ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
 
     ui.horizontal(|ui| {
-        let receipt_width = 384.0; // 58mm
+        let receipt_width = 260.0; // 58mm
 
         egui::Frame::default()
             .fill(egui::Color32::from_rgb(255, 250, 240))

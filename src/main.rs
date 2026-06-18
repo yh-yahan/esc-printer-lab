@@ -22,6 +22,6 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "ESC Printer Lab",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::main_window::MainWindow::new(rx)))),
+        Box::new(|_cc| Ok(Box::new(ui::app::App::new(rx)))),
     )
 }
