@@ -1,4 +1,4 @@
-use crate::parser::command::Alignment;
+use crate::parser::command::{Alignment, UnderlineMode};
 
 #[derive(Debug, Clone, Default)]
 pub struct Receipt {
@@ -10,6 +10,7 @@ pub struct ReceiptLine {
     pub text: String,
     pub alignment: Alignment,
     pub bold: bool,
+    pub underline: UnderlineMode
 }
 
 impl Receipt {

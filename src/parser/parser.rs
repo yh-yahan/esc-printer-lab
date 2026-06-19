@@ -1,4 +1,4 @@
-use super::command::{Alignment, Command};
+use super::command::{Alignment, UnderlineMode, Command};
 use super::state::ParserState;
 
 pub struct Parser {
@@ -47,6 +47,7 @@ impl Parser {
             ParserState::Esc => self.handle_esc(byte, commands),
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
             ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
+            ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
         }
     }
 
@@ -84,6 +85,10 @@ impl Parser {
                 self.state = ParserState::EscAlignment;
             }
 
+            0x2D => {
+                self.state = ParserState::EscUnderline;
+            }
+
             _ => {
                 self.state = ParserState::Normal;
             }
@@ -103,6 +108,7 @@ impl Parser {
         if let Some(align) = align {
             commands.push(Command::Align(align));
         }
+
         self.state = ParserState::Normal;
     }
 
@@ -112,6 +118,23 @@ impl Parser {
         let enabled = (byte & 0x01) != 0;
 
         commands.push(Command::Bold(enabled));
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_underline(&mut self, byte: u8, commands: &mut Vec<Command>) {
+        self.flush_text(commands);
+
+        let underline = match byte {
+            0x00 | 0x30 => Some(UnderlineMode::Off),
+            0x01 | 0x31 => Some(UnderlineMode::Thin),
+            0x02 | 0x32 => Some(UnderlineMode::Thick),
+            _ => None,
+        };
+
+        if let Some(underline) = underline {
+            commands.push(Command::Underline(underline));
+        }
 
         self.state = ParserState::Normal;
     }

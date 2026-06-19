@@ -1,5 +1,6 @@
 use eframe::egui;
 use crate::receipt::receipt::Receipt;
+use crate::parser::command::{UnderlineMode};
 
 pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
     ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
@@ -25,9 +26,34 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                             egui::RichText::new(&line.text)
                         };
 
+                        let paint_underline = |ui: &egui::Ui, rect: egui::Rect| {
+                            match line.underline {
+                                UnderlineMode::Off => {}
+                                UnderlineMode::Thin => {
+                                    ui.painter().line_segment(
+                                        [
+                                            egui::pos2(rect.left(), rect.bottom() - 1.0),
+                                            egui::pos2(rect.right(), rect.bottom() - 1.0),
+                                        ],
+                                        egui::Stroke::new(1.0, egui::Color32::BLACK),
+                                    );
+                                }
+                                UnderlineMode::Thick => {
+                                    ui.painter().line_segment(
+                                        [
+                                            egui::pos2(rect.left(), rect.bottom() - 1.0),
+                                            egui::pos2(rect.right(), rect.bottom() - 1.0),
+                                        ],
+                                        egui::Stroke::new(2.0, egui::Color32::BLACK),
+                                    );
+                                }
+                            }
+                        };
+
                         match line.alignment {
                             crate::parser::command::Alignment::Left => {
-                                ui.label(text);
+                                let response = ui.label(text);
+                                paint_underline(ui, response.rect);
                             }
 
                             crate::parser::command::Alignment::Center => {
@@ -39,6 +65,7 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                         egui::Color32::PLACEHOLDER,
                                     )
                                 });
+
                                 let text_width = galley.size().x;
                                 let paper_width = receipt_width - 36.0;
 
@@ -46,7 +73,9 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                     if paper_width > text_width {
                                         ui.add_space((paper_width - text_width) / 2.0);
                                     }
-                                    ui.label(text);
+
+                                    let response = ui.label(text);
+                                    paint_underline(ui, response.rect);
                                 });
                             }
 
@@ -54,7 +83,8 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        ui.label(text);
+                                        let response = ui.label(text);
+                                        paint_underline(ui, response.rect);
                                     },
                                 );
                             }

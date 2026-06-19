@@ -5,6 +5,7 @@ pub enum Command {
     LineFeed,
     Bold(bool),
     Align(Alignment),
+    Underline(UnderlineMode),
     Cut,
 }
 
@@ -13,4 +14,11 @@ pub enum Alignment {
     Left,
     Center,
     Right
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnderlineMode {
+    Off,
+    Thin,
+    Thick
 }
