@@ -1,12 +1,12 @@
 use crate::parser::command::{Alignment, UnderlineMode, Command};
 
-use super::receipt::{Receipt, ReceiptLine};
+use super::receipt::{Receipt, ReceiptLine, ReceiptSegment};
 
 pub struct ReceiptBuilder {
     current_bold: bool,
     current_alignment: Alignment,
     current_underline: UnderlineMode,
-    segments: Vec<(String, bool)>,
+    segments: Vec<ReceiptSegment>,
     receipt: Receipt,
 }
 
@@ -27,6 +27,7 @@ impl ReceiptBuilder {
                 self.current_alignment = Alignment::Left;
                 self.segments.clear();
                 self.current_bold = false;
+                self.current_underline = UnderlineMode::Off;
             }
 
             Command::Bold(bold) => {
@@ -42,7 +43,11 @@ impl ReceiptBuilder {
             }
 
             Command::Text(text) => {
-                self.segments.push((text.clone(), self.current_bold));
+                self.segments.push(ReceiptSegment {
+                    text: text.clone(),
+                    bold: self.current_bold,
+                    underline: self.current_underline,
+                });
             }
 
             Command::LineFeed => {
@@ -69,21 +74,9 @@ impl ReceiptBuilder {
             return;
         }
 
-        let text = self
-            .segments
-            .iter()
-            .map(|(t, _)| t.as_str())
-            .collect::<String>();
-
-        let bold = self.segments.iter().any(|(_, b)| *b);
-
         self.receipt.lines.push(ReceiptLine {
-            text,
             alignment: self.current_alignment,
-            bold,
-            underline: self.current_underline,
+            segments: std::mem::take(&mut self.segments),
         });
-
-        self.segments.clear();
     }
 }

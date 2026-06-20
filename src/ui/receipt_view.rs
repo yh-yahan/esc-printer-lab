@@ -1,6 +1,7 @@
 use eframe::egui;
+
+use crate::parser::command::{Alignment, UnderlineMode};
 use crate::receipt::receipt::Receipt;
-use crate::parser::command::{UnderlineMode};
 
 pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
     ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
@@ -20,48 +21,80 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                     ui.add_space(8.0);
 
                     for line in &receipt.lines {
-                        let text = if line.bold {
-                            egui::RichText::new(&line.text).strong()
-                        } else {
-                            egui::RichText::new(&line.text)
+                        let render_segments = |ui: &mut egui::Ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                for segment in &line.segments {
+                                    let mut text = egui::RichText::new(&segment.text);
+
+                                    if segment.bold {
+                                        text = text.strong();
+                                    }
+
+                                    let response = ui.label(text);
+
+                                    match segment.underline {
+                                        UnderlineMode::Off => {}
+
+                                        UnderlineMode::Thin => {
+                                            ui.painter().line_segment(
+                                                [
+                                                    egui::pos2(
+                                                        response.rect.left(),
+                                                        response.rect.bottom() - 1.0,
+                                                    ),
+                                                    egui::pos2(
+                                                        response.rect.right(),
+                                                        response.rect.bottom() - 1.0,
+                                                    ),
+                                                ],
+                                                egui::Stroke::new(
+                                                    1.0,
+                                                    egui::Color32::BLACK,
+                                                ),
+                                            );
+                                        }
+
+                                        UnderlineMode::Thick => {
+                                            ui.painter().line_segment(
+                                                [
+                                                    egui::pos2(
+                                                        response.rect.left(),
+                                                        response.rect.bottom() - 1.0,
+                                                    ),
+                                                    egui::pos2(
+                                                        response.rect.right(),
+                                                        response.rect.bottom() - 1.0,
+                                                    ),
+                                                ],
+                                                egui::Stroke::new(
+                                                    2.0,
+                                                    egui::Color32::BLACK,
+                                                ),
+                                            );
+                                        }
+                                    }
+                                }
+                            });
                         };
 
-                        let paint_underline = |ui: &egui::Ui, rect: egui::Rect| {
-                            match line.underline {
-                                UnderlineMode::Off => {}
-                                UnderlineMode::Thin => {
-                                    ui.painter().line_segment(
-                                        [
-                                            egui::pos2(rect.left(), rect.bottom() - 1.0),
-                                            egui::pos2(rect.right(), rect.bottom() - 1.0),
-                                        ],
-                                        egui::Stroke::new(1.0, egui::Color32::BLACK),
-                                    );
-                                }
-                                UnderlineMode::Thick => {
-                                    ui.painter().line_segment(
-                                        [
-                                            egui::pos2(rect.left(), rect.bottom() - 1.0),
-                                            egui::pos2(rect.right(), rect.bottom() - 1.0),
-                                        ],
-                                        egui::Stroke::new(2.0, egui::Color32::BLACK),
-                                    );
-                                }
-                            }
-                        };
+                        let plain_text = line
+                            .segments
+                            .iter()
+                            .map(|s| s.text.as_str())
+                            .collect::<String>();
 
                         match line.alignment {
-                            crate::parser::command::Alignment::Left => {
-                                let response = ui.label(text);
-                                paint_underline(ui, response.rect);
+                            Alignment::Left => {
+                                render_segments(ui);
                             }
 
-                            crate::parser::command::Alignment::Center => {
+                            Alignment::Center => {
                                 let font_id = egui::FontId::monospace(13.0);
+
                                 let galley = ui.fonts_mut(|fonts| {
                                     fonts.layout_no_wrap(
-                                        line.text.clone(),
-                                        font_id.clone(),
+                                        plain_text.clone(),
+                                        font_id,
                                         egui::Color32::PLACEHOLDER,
                                     )
                                 });
@@ -74,17 +107,15 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                         ui.add_space((paper_width - text_width) / 2.0);
                                     }
 
-                                    let response = ui.label(text);
-                                    paint_underline(ui, response.rect);
+                                    render_segments(ui);
                                 });
                             }
 
-                            crate::parser::command::Alignment::Right => {
+                            Alignment::Right => {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        let response = ui.label(text);
-                                        paint_underline(ui, response.rect);
+                                        render_segments(ui);
                                     },
                                 );
                             }

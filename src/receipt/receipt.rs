@@ -7,10 +7,15 @@ pub struct Receipt {
 
 #[derive(Debug, Clone)]
 pub struct ReceiptLine {
-    pub text: String,
     pub alignment: Alignment,
+    pub segments: Vec<ReceiptSegment>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReceiptSegment {
+    pub text: String,
     pub bold: bool,
-    pub underline: UnderlineMode
+    pub underline: UnderlineMode,
 }
 
 impl Receipt {
