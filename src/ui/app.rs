@@ -25,6 +25,30 @@ impl eframe::App for App {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(format!("Receipts: {}", self.receipts.len()))
+                    .color(egui::Color32::from_gray(230))
+            );
+
+            ui.with_layout(
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    let clear_button = egui::Button::new(
+                        egui::RichText::new("Clear")
+                            .strong()
+                    )
+                    .min_size(egui::vec2(100.0, 32.0));
+
+                    if ui.add(clear_button).clicked() {
+                        self.receipts.clear();
+                    }
+                },
+            );
+        });
+
+        ui.separator();
+        
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
