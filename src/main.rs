@@ -2,17 +2,23 @@ mod input;
 mod parser;
 mod receipt;
 mod ui;
+mod shared;
 
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::sync::mpsc;
+
+use crate::shared::print_session::PrintSession;
 
 fn main() -> eframe::Result<()> {
-    let (tx, rx) = mpsc::channel();
+    let session = Arc::new(Mutex::new(PrintSession::new()));
 
-    let tx_clone = tx.clone();
+    let session_clone = Arc::clone(&session);
 
-    thread::spawn(|| {
-        if let Err(e) = input::tcp_server::start("127.0.0.1:9102", tx_clone) {
+    thread::spawn(move || {
+        if let Err(e) = input::tcp_server::start(
+            "127.0.0.1:9102",
+            session_clone,
+        ) {
             eprintln!("TCP server error: {}", e);
         }
     });
@@ -22,6 +28,8 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "ESC Printer Lab",
         options,
-        Box::new(|_cc| Ok(Box::new(ui::app::App::new(rx)))),
+        Box::new(|_cc| {
+            Ok(Box::new(ui::app::App::new(session)))
+        }),
     )
 }

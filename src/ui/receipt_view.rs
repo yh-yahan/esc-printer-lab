@@ -26,11 +26,16 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                 for segment in &line.segments {
                                     let mut text = egui::RichText::new(&segment.text);
 
-                                    if segment.bold {
-                                        text = text.strong();
-                                    }
+                                if segment.bold {
+                                    text = text
+                                        .color(egui::Color32::BLACK)
+                                        .strong();
+                                } else {
+                                    text = text
+                                        .color(egui::Color32::from_gray(70));
+                                }
 
-                                    let response = ui.label(text);
+                                let response = ui.label(text);
 
                                     match segment.underline {
                                         UnderlineMode::Off => {}

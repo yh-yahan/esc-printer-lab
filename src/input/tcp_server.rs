@@ -1,19 +1,19 @@
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
+
 use crate::parser::parser::Parser;
 use crate::receipt::builder::ReceiptBuilder;
-use std::sync::mpsc::Sender;
-use crate::receipt::receipt::Receipt;
+use crate::shared::print_session::PrintSession;
 
-pub fn start(addr: &str, tx: Sender<Receipt>) -> std::io::Result<()> {
+pub fn start(addr: &str, session: Arc<Mutex<PrintSession>>) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                println!("Client connected");
-
-                handle_client(stream, &tx);
+                println!("Client connected: {:?}", stream.peer_addr());
+                handle_client(stream, Arc::clone(&session));
             }
 
             Err(e) => {
@@ -25,7 +25,7 @@ pub fn start(addr: &str, tx: Sender<Receipt>) -> std::io::Result<()> {
     Ok(())
 }
 
-fn handle_client(mut stream: TcpStream, tx: &Sender<Receipt>) {
+fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
     let mut parser = Parser::new();
     let mut builder = ReceiptBuilder::new();
 
@@ -43,11 +43,20 @@ fn handle_client(mut stream: TcpStream, tx: &Sender<Receipt>) {
 
                 println!("Received {} bytes", bytes_read);
                 println!("{:?}", data);
+                session.lock().unwrap().push_raw(data);
 
                 let commands = parser.feed(data);
 
-                for cmd in commands {
+                for cmd in &commands {
                     println!("{:?}", cmd);
+                }
+
+                for cmd in commands {
+                    session
+                        .lock()
+                        .unwrap()
+                        .push_parser(format!("{:?}", cmd));
+
                     builder.process(&cmd);
                 }
             }
@@ -62,5 +71,6 @@ fn handle_client(mut stream: TcpStream, tx: &Sender<Receipt>) {
     let receipt = builder.build();
 
     println!("{:#?}", receipt);
-    tx.send(receipt).ok();
+
+    session.lock().unwrap().push_receipt(receipt);
 }
