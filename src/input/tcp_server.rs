@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use crate::parser::parser::Parser;
 use crate::receipt::builder::ReceiptBuilder;
 use crate::shared::print_session::PrintSession;
+use crate::shared::escpos_formatter::EscPosFormatter;
 
 pub fn start(addr: &str, session: Arc<Mutex<PrintSession>>) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
@@ -46,6 +47,10 @@ fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
                 session.lock().unwrap().push_raw(data);
 
                 let commands = parser.feed(data);
+
+                let escpos_lines = EscPosFormatter::format(data);
+
+                session.lock().unwrap().escpos_output.extend(escpos_lines);
 
                 for cmd in &commands {
                     println!("{:?}", cmd);

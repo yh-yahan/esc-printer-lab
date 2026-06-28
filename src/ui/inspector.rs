@@ -9,6 +9,7 @@ pub enum InspectorTab {
     Hex,
     Parser,
     Raw,
+    EscPos,
 }
 
 pub struct Inspector;
@@ -22,6 +23,7 @@ impl Inspector {
 
     pub fn show(ui: &mut egui::Ui, selected_tab: &mut InspectorTab, session: &Arc<Mutex<PrintSession>>) {
         ui.horizontal(|ui| {
+            Self::tab_button(ui, selected_tab, InspectorTab::EscPos, "ESC/POS");
             Self::tab_button(ui, selected_tab, InspectorTab::Receipt, "Receipt");
             Self::tab_button(ui, selected_tab, InspectorTab::Hex, "Hex");
             Self::tab_button(ui, selected_tab, InspectorTab::Parser, "Parser");
@@ -49,9 +51,17 @@ impl Inspector {
                 let session = session.lock().unwrap();
 
                 match selected_tab {
-                    InspectorTab::Receipt => {
-                        ui.heading("Receipt");
+                    InspectorTab::EscPos => {
+                        if session.escpos_output.is_empty() {
+                            ui.label("No data yet");
+                        } else {
+                            for line in &session.escpos_output {
+                                ui.label(line);
+                            }
+                        }
+                    }
 
+                    InspectorTab::Receipt => {
                         if session.receipts.is_empty() {
                             ui.label("No data yet");
                         } else {
@@ -62,8 +72,6 @@ impl Inspector {
                     }
 
                     InspectorTab::Parser => {
-                        ui.heading("Parser Output");
-
                         if session.parser_output.is_empty() {
                             ui.label("No parser data yet");
                         } else {
@@ -74,8 +82,6 @@ impl Inspector {
                     }
 
                     InspectorTab::Raw => {
-                        ui.heading("Raw Bytes");
-
                         if session.raw_chunks.is_empty() {
                             ui.label("No data yet");
                         } else {
@@ -86,8 +92,6 @@ impl Inspector {
                     }
 
                     InspectorTab::Hex => {
-                        ui.heading("Hex Dump");
-
                         if session.raw_chunks.is_empty() {
                             ui.label("No data yet");
                         } else {

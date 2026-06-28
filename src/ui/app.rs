@@ -15,7 +15,7 @@ impl App {
     pub fn new(session: Arc<Mutex<PrintSession>>) -> Self {
         Self {
             session,
-            selected_tab: InspectorTab::Receipt,
+            selected_tab: InspectorTab::EscPos,
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::receipt::receipt::Receipt;
 pub struct PrintSession {
     pub raw_chunks: Vec<Vec<u8>>,
     pub parser_output: Vec<String>,
+    pub escpos_output: Vec<String>,
     pub receipts: Vec<Receipt>,
 }
 
