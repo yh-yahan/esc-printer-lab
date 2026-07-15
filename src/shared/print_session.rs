@@ -26,6 +26,7 @@ impl PrintSession {
     }
 
     pub fn clear(&mut self) {
+        self.escpos_output.clear();
         self.raw_chunks.clear();
         self.parser_output.clear();
         self.receipts.clear();
