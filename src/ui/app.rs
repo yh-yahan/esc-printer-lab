@@ -60,13 +60,23 @@ impl eframe::App for App {
                 .show(&mut columns[0], |ui| {
                     let session = self.session.lock().unwrap();
 
-                    if session.receipts.is_empty() {
-                        render_receipt(ui, &Receipt { lines: vec![] });
-                    } else {
-                        for receipt in &session.receipts {
-                            render_receipt(ui, receipt);
-                        }
-                    }
+                    let receipt_width = 250.0;
+                    let available_width = ui.available_width();
+                    let left_padding = ((available_width - receipt_width) / 2.0).max(0.0);
+
+                    ui.horizontal(|ui| {
+                        ui.add_space(left_padding);
+
+                        ui.vertical(|ui| {
+                            if session.receipts.is_empty() {
+                                render_receipt(ui, &Receipt { lines: vec![] });
+                            } else {
+                                for receipt in &session.receipts {
+                                    render_receipt(ui, receipt);
+                                }
+                            }
+                        });
+                    });
                 });
 
             columns[1].separator();
