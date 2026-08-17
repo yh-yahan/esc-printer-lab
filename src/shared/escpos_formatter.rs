@@ -37,6 +37,21 @@ impl EscPosFormatter {
                     }
                 }
 
+                0x1D => {
+                    i += 1;
+                    if i >= bytes.len() { break; }
+
+                    match bytes[i] {
+                        0x56 => {
+                            i += 1;
+                            if i < bytes.len() {
+                                out.push(format!("GS V {}", bytes[i]));
+                            }
+                        }
+                        _ => out.push(format!("GS ? {:02X}", bytes[i])),
+                    }
+                }
+
                 0x0A => out.push("LF".into()),
 
                 printable if printable >= 0x20 && printable <= 0x7E => {

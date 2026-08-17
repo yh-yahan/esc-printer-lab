@@ -60,33 +60,32 @@ impl eframe::App for App {
                 .show(&mut columns[0], |ui| {
                     let session = self.session.lock().unwrap();
 
-                    let receipt_width = 250.0;
-                    let available_width = ui.available_width();
-                    let left_padding = ((available_width - receipt_width) / 2.0).max(0.0);
+                    ui.vertical_centered(|ui| {
+                        if session.receipts.is_empty() {
+                            render_receipt(ui, &Receipt { items: vec![] });
+                        } else {
+                            let mut combined_items = Vec::new();
 
-                    ui.horizontal(|ui| {
-                        ui.add_space(left_padding);
-
-                        ui.vertical(|ui| {
-                            if session.receipts.is_empty() {
-                                render_receipt(ui, &Receipt { lines: vec![] });
-                            } else {
-                                for receipt in &session.receipts {
-                                    render_receipt(ui, receipt);
-                                }
+                            for receipt in &session.receipts {
+                                combined_items.extend(receipt.items.iter().cloned());
                             }
-                        });
+
+                            let combined = Receipt {
+                                items: combined_items,
+                            };
+
+                            render_receipt(ui, &combined);
+                        }
                     });
                 });
 
             columns[1].separator();
 
-            egui::ScrollArea::vertical()
-                .id_source("inspector_scroll")
-                .auto_shrink([false; 2])
-                .show(&mut columns[1], |ui| {
-                    Inspector::show(ui, &mut self.selected_tab, &self.session);
-                });
+            Inspector::show(
+                &mut columns[1],
+                &mut self.selected_tab,
+                &self.session,
+            );
         });
     }
 }

@@ -1,4 +1,4 @@
-use super::command::{Alignment, UnderlineMode, Command};
+use super::command::{Alignment, UnderlineMode, CutMode, Command};
 use super::state::ParserState;
 
 pub struct Parser {
@@ -48,6 +48,8 @@ impl Parser {
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
             ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
             ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
+            ParserState::Gs => self.handle_gs(byte),
+            ParserState::GsCut => self.handle_gs_cut(byte, commands),
         }
     }
 
@@ -61,6 +63,11 @@ impl Parser {
             0x0A => {
                 self.flush_text(commands);
                 commands.push(Command::LineFeed);
+            }
+
+            0x1D => {
+                self.flush_text(commands);
+                self.state = ParserState::Gs;
             }
 
             _ => {
@@ -134,6 +141,34 @@ impl Parser {
 
         if let Some(underline) = underline {
             commands.push(Command::Underline(underline));
+        }
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs(&mut self, byte: u8) {
+        match byte {
+            0x56 => {
+                self.state = ParserState::GsCut;
+            }
+
+            _ => {
+                self.state = ParserState::Normal;
+            }
+        }
+    }
+
+    fn handle_gs_cut(&mut self, byte: u8, commands: &mut Vec<Command>) {
+        self.flush_text(commands);
+
+        let cut = match byte {
+            0x00 | 0x30 => Some(CutMode::Full),
+            0x01 | 0x31 => Some(CutMode::Partial),
+            _ => None,
+        };
+
+        if let Some(cut) = cut {
+            commands.push(Command::Cut(cut));
         }
 
         self.state = ParserState::Normal;

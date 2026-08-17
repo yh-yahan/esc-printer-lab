@@ -16,7 +16,7 @@ fn main() -> eframe::Result<()> {
 
     thread::spawn(move || {
         if let Err(e) = input::tcp_server::start(
-            "127.0.0.1:9102",
+            "127.0.0.1:9100",
             session_clone,
         ) {
             eprintln!("TCP server error: {}", e);

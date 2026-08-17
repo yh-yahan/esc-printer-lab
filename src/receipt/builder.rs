@@ -1,6 +1,11 @@
-use crate::parser::command::{Alignment, UnderlineMode, Command};
+use crate::parser::command::{Alignment, Command, UnderlineMode};
 
-use super::receipt::{Receipt, ReceiptLine, ReceiptSegment};
+use super::receipt::{
+    Receipt,
+    ReceiptEvent,
+    ReceiptLine,
+    ReceiptSegment,
+};
 
 pub struct ReceiptBuilder {
     current_bold: bool,
@@ -39,7 +44,7 @@ impl ReceiptBuilder {
             }
 
             Command::Underline(underline_mode) => {
-                self.current_underline = *underline_mode
+                self.current_underline = *underline_mode;
             }
 
             Command::Text(text) => {
@@ -54,7 +59,13 @@ impl ReceiptBuilder {
                 self.flush_current_line();
             }
 
-            Command::Cut => {}
+            Command::Cut(cut_mode) => {
+                self.flush_current_line();
+
+                self.receipt.add_event(
+                    ReceiptEvent::Cut(*cut_mode)
+                );
+            }
         }
     }
 
@@ -74,9 +85,10 @@ impl ReceiptBuilder {
             return;
         }
 
-        self.receipt.lines.push(ReceiptLine {
+        self.receipt.add_line(ReceiptLine {
             alignment: self.current_alignment,
             segments: std::mem::take(&mut self.segments),
         });
     }
 }
+

@@ -6,7 +6,7 @@ pub enum Command {
     Bold(bool),
     Align(Alignment),
     Underline(UnderlineMode),
-    Cut,
+    Cut(CutMode),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,3 +22,10 @@ pub enum UnderlineMode {
     Thin,
     Thick
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CutMode {
+    Full,
+    Partial
+}
+

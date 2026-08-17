@@ -1,41 +1,44 @@
 use eframe::egui;
 
-use crate::parser::command::{Alignment, UnderlineMode};
-use crate::receipt::receipt::Receipt;
+use crate::parser::command::{Alignment, CutMode, UnderlineMode};
+use crate::receipt::receipt::{Receipt, ReceiptEvent, ReceiptItem};
 
-pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
-    ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
+const PAPER_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 250, 240);
+const PAPER_WIDTH: f32 = 250.0;
 
-    ui.horizontal(|ui| {
-        let receipt_width = 250.0; // 58mm
+fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
+    egui::Frame::default()
+        .fill(PAPER_COLOR)
+        .stroke(egui::Stroke::new(
+            1.5,
+            egui::Color32::from_gray(150),
+        ))
+        .inner_margin(egui::vec2(18.0, 14.0))
+        .corner_radius(egui::CornerRadius::same(4))
+        .show(ui, |ui| {
+            ui.set_width(PAPER_WIDTH);
 
-        egui::Frame::default()
-            .fill(egui::Color32::from_rgb(255, 250, 240))
-            .stroke(egui::Stroke::new(1.5, egui::Color32::from_gray(150)))
-            .inner_margin(egui::vec2(18.0, 14.0))
-            .rounding(egui::CornerRadius::same(4))
-            .show(ui, |ui| {
-                ui.set_width(receipt_width);
+            ui.vertical(|ui| {
+                ui.add_space(8.0);
 
-                ui.vertical(|ui| {
-                    ui.add_space(8.0);
-
-                    for line in &receipt.lines {
+                for item in items {
+                    if let ReceiptItem::Line(line) = item {
                         let render_segments = |ui: &mut egui::Ui| {
                             ui.horizontal_wrapped(|ui| {
                                 for segment in &line.segments {
-                                    let mut text = egui::RichText::new(&segment.text);
+                                    let mut text =
+                                        egui::RichText::new(&segment.text);
 
-                                if segment.bold {
-                                    text = text
-                                        .color(egui::Color32::BLACK)
-                                        .strong();
-                                } else {
-                                    text = text
-                                        .color(egui::Color32::from_gray(70));
-                                }
+                                    if segment.bold {
+                                        text = text
+                                            .color(egui::Color32::BLACK)
+                                            .strong();
+                                    } else {
+                                        text = text
+                                            .color(egui::Color32::from_gray(70));
+                                    }
 
-                                let response = ui.label(text);
+                                    let response = ui.label(text);
 
                                     match segment.underline {
                                         UnderlineMode::Off => {}
@@ -105,11 +108,13 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                                 });
 
                                 let text_width = galley.size().x;
-                                let paper_width = receipt_width - 36.0;
+                                let paper_width = PAPER_WIDTH - 36.0;
 
                                 ui.horizontal(|ui| {
                                     if paper_width > text_width {
-                                        ui.add_space((paper_width - text_width) / 2.0);
+                                        ui.add_space(
+                                            (paper_width - text_width) / 2.0,
+                                        );
                                     }
 
                                     render_segments(ui);
@@ -118,7 +123,9 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
 
                             Alignment::Right => {
                                 ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    egui::Layout::right_to_left(
+                                        egui::Align::Center,
+                                    ),
                                     |ui| {
                                         render_segments(ui);
                                     },
@@ -126,9 +133,70 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
                             }
                         }
                     }
+                }
 
-                    ui.add_space(8.0);
-                });
+                ui.add_space(8.0);
             });
+        });
+}
+
+pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
+    ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
+
+    ui.vertical_centered(|ui| {
+        let mut section: Vec<&ReceiptItem> = Vec::new();
+
+        for item in &receipt.items {
+            match item {
+                ReceiptItem::Line(_) => {
+                    section.push(item);
+                }
+
+                ReceiptItem::Event(ReceiptEvent::Cut(cut_mode)) => {
+                    if !section.is_empty() {
+                        render_paper_section(ui, &section);
+                        section.clear();
+                    }
+
+                    match cut_mode {
+                        CutMode::Full => {
+                            ui.add_space(24.0);
+                        }
+
+                        CutMode::Partial => {
+                            let bridge_width = 70.0;
+                            let bridge_height = 16.0;
+
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(
+                                    PAPER_WIDTH,
+                                    bridge_height,
+                                ),
+                                egui::Sense::hover(),
+                            );
+
+                            let bridge_rect =
+                                egui::Rect::from_center_size(
+                                    rect.center(),
+                                    egui::vec2(
+                                        bridge_width,
+                                        bridge_height,
+                                    ),
+                                );
+
+                            ui.painter().rect_filled(
+                                bridge_rect,
+                                0.0,
+                                PAPER_COLOR,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if !section.is_empty() {
+            render_paper_section(ui, &section);
+        }
     });
 }

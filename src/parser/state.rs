@@ -5,4 +5,6 @@ pub enum ParserState {
     EscAlignment,
     EscEmphasis,
     EscUnderline,
+    Gs,
+    GsCut,
 }
