@@ -8,20 +8,17 @@ It listens for ESC/POS data over TCP and shows a live visual preview of the rece
 
 ## Current Status
 
-**Early stage project.**
-
 Currently supported commands:
 
 - `ESC @` — Initialize
 - `ESC a n` — Alignment (Left / Center / Right)
 - `ESC E n` — Bold on/off
 - `ESC - n` — Underline (Off / Thin / Thick)
+- `GS V n` — Paper cut
 - `LF` (`0x0A`) — Line feed
 - Plain text
 
 Missing (planned):
-
-- Paper cut
 - Font size / double width & height
 - Character code pages
 - Images / raster bitmaps
