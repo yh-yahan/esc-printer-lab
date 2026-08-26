@@ -7,6 +7,7 @@ pub enum Command {
     Align(Alignment),
     Underline(UnderlineMode),
     Cut(CutMode),
+    CharSize(CharSize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,5 +28,11 @@ pub enum UnderlineMode {
 pub enum CutMode {
     Full,
     Partial
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CharSize {
+    pub width: u8,
+    pub height: u8,
 }
 

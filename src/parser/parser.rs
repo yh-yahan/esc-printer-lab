@@ -1,4 +1,4 @@
-use super::command::{Alignment, UnderlineMode, CutMode, Command};
+use super::command::{Alignment, UnderlineMode, CutMode, CharSize, Command};
 use super::state::ParserState;
 
 pub struct Parser {
@@ -50,6 +50,7 @@ impl Parser {
             ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
             ParserState::Gs => self.handle_gs(byte),
             ParserState::GsCut => self.handle_gs_cut(byte, commands),
+            ParserState::GsCharSize => self.handle_gs_char_size(byte, commands),
         }
     }
 
@@ -148,6 +149,10 @@ impl Parser {
 
     fn handle_gs(&mut self, byte: u8) {
         match byte {
+            0x21 => {
+                self.state = ParserState::GsCharSize;
+            }
+
             0x56 => {
                 self.state = ParserState::GsCut;
             }
@@ -170,6 +175,18 @@ impl Parser {
         if let Some(cut) = cut {
             commands.push(Command::Cut(cut));
         }
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_char_size(&mut self, byte: u8, commands: &mut Vec<Command>) {
+        let width = ((byte >> 4) & 0x07) + 1;
+        let height = (byte & 0x07) + 1;
+
+        commands.push(Command::CharSize(CharSize {
+            width,
+            height,
+        }));
 
         self.state = ParserState::Normal;
     }

@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, UnderlineMode, CutMode};
+use crate::parser::command::{Alignment, CharSize, UnderlineMode, CutMode};
 
 #[derive(Debug, Clone, Default)]
 pub struct Receipt {
@@ -22,6 +22,7 @@ pub struct ReceiptSegment {
     pub text: String,
     pub bold: bool,
     pub underline: UnderlineMode,
+    pub char_size: CharSize,
 }
 
 #[derive(Debug, Clone)]

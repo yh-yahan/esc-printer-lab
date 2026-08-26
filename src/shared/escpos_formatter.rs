@@ -42,6 +42,15 @@ impl EscPosFormatter {
                     if i >= bytes.len() { break; }
 
                     match bytes[i] {
+                        0x21 => {
+                            i += 1;
+                            if i < bytes.len() {
+                                let n = bytes[i];
+
+                                out.push(format!("GS ! {:02X}", n));
+                            }
+                        }
+
                         0x56 => {
                             i += 1;
                             if i < bytes.len() {

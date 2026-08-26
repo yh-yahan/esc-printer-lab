@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, Command, UnderlineMode};
+use crate::parser::command::{Alignment, Command, CharSize, UnderlineMode};
 
 use super::receipt::{
     Receipt,
@@ -11,6 +11,7 @@ pub struct ReceiptBuilder {
     current_bold: bool,
     current_alignment: Alignment,
     current_underline: UnderlineMode,
+    current_char_size: CharSize,
     segments: Vec<ReceiptSegment>,
     receipt: Receipt,
 }
@@ -21,6 +22,7 @@ impl ReceiptBuilder {
             current_bold: false,
             current_alignment: Alignment::Left,
             current_underline: UnderlineMode::Off,
+            current_char_size: CharSize { width: 1, height: 1 },
             segments: Vec::new(),
             receipt: Receipt::new(),
         }
@@ -33,6 +35,7 @@ impl ReceiptBuilder {
                 self.segments.clear();
                 self.current_bold = false;
                 self.current_underline = UnderlineMode::Off;
+                self.current_char_size = CharSize { width: 1, height: 1 };
             }
 
             Command::Bold(bold) => {
@@ -47,11 +50,16 @@ impl ReceiptBuilder {
                 self.current_underline = *underline_mode;
             }
 
+            Command::CharSize(char_size) => {
+                self.current_char_size = *char_size;
+            }
+
             Command::Text(text) => {
                 self.segments.push(ReceiptSegment {
                     text: text.clone(),
                     bold: self.current_bold,
                     underline: self.current_underline,
+                    char_size: self.current_char_size,
                 });
             }
 

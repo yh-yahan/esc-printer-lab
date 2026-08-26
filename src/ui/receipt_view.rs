@@ -5,6 +5,7 @@ use crate::receipt::receipt::{Receipt, ReceiptEvent, ReceiptItem};
 
 const PAPER_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 250, 240);
 const PAPER_WIDTH: f32 = 250.0;
+const BASE_FONT_SIZE: f32 = 13.0;
 
 fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
     egui::Frame::default()
@@ -26,8 +27,12 @@ fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
                         let render_segments = |ui: &mut egui::Ui| {
                             ui.horizontal_wrapped(|ui| {
                                 for segment in &line.segments {
+                                    let font_size =
+                                        BASE_FONT_SIZE * segment.char_size.height as f32;
+
                                     let mut text =
-                                        egui::RichText::new(&segment.text);
+                                        egui::RichText::new(&segment.text)
+                                            .font(egui::FontId::monospace(font_size));
 
                                     if segment.bold {
                                         text = text
@@ -97,17 +102,30 @@ fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
                             }
 
                             Alignment::Center => {
-                                let font_id = egui::FontId::monospace(13.0);
+                                let text_width = line
+                                    .segments
+                                    .iter()
+                                    .map(|segment| {
+                                        let font_size =
+                                            BASE_FONT_SIZE
+                                                * segment.char_size.height as f32;
 
-                                let galley = ui.fonts_mut(|fonts| {
-                                    fonts.layout_no_wrap(
-                                        plain_text.clone(),
-                                        font_id,
-                                        egui::Color32::PLACEHOLDER,
-                                    )
-                                });
+                                        let font_id =
+                                            egui::FontId::monospace(font_size);
 
-                                let text_width = galley.size().x;
+                                        ui.fonts_mut(|fonts| {
+                                            fonts
+                                                .layout_no_wrap(
+                                                    segment.text.clone(),
+                                                    font_id,
+                                                    egui::Color32::PLACEHOLDER,
+                                                )
+                                                .size()
+                                                .x
+                                        })
+                                    })
+                                    .sum::<f32>();
+
                                 let paper_width = PAPER_WIDTH - 36.0;
 
                                 ui.horizontal(|ui| {
@@ -141,7 +159,8 @@ fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
 }
 
 pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt) {
-    ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
+    ui.style_mut().override_font_id =
+        Some(egui::FontId::monospace(BASE_FONT_SIZE));
 
     ui.vertical_centered(|ui| {
         let mut section: Vec<&ReceiptItem> = Vec::new();

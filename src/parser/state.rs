@@ -7,4 +7,5 @@ pub enum ParserState {
     EscUnderline,
     Gs,
     GsCut,
+    GsCharSize,
 }
