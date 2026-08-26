@@ -17,143 +17,125 @@ fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem]) {
         .inner_margin(egui::vec2(18.0, 14.0))
         .corner_radius(egui::CornerRadius::same(4))
         .show(ui, |ui| {
-            ui.set_width(PAPER_WIDTH);
+            let content_width = PAPER_WIDTH - 36.0;
+
+            ui.set_width(content_width);
 
             ui.vertical(|ui| {
-                ui.add_space(8.0);
-
                 for item in items {
                     if let ReceiptItem::Line(line) = item {
-                        let render_segments = |ui: &mut egui::Ui| {
-                            ui.horizontal_wrapped(|ui| {
-                                for segment in &line.segments {
-                                    let font_size =
-                                        BASE_FONT_SIZE * segment.char_size.height as f32;
-
-                                    let mut text =
-                                        egui::RichText::new(&segment.text)
-                                            .font(egui::FontId::monospace(font_size));
-
-                                    if segment.bold {
-                                        text = text
-                                            .color(egui::Color32::BLACK)
-                                            .strong();
-                                    } else {
-                                        text = text
-                                            .color(egui::Color32::from_gray(70));
-                                    }
-
-                                    let response = ui.label(text);
-
-                                    match segment.underline {
-                                        UnderlineMode::Off => {}
-
-                                        UnderlineMode::Thin => {
-                                            ui.painter().line_segment(
-                                                [
-                                                    egui::pos2(
-                                                        response.rect.left(),
-                                                        response.rect.bottom() - 1.0,
-                                                    ),
-                                                    egui::pos2(
-                                                        response.rect.right(),
-                                                        response.rect.bottom() - 1.0,
-                                                    ),
-                                                ],
-                                                egui::Stroke::new(
-                                                    1.0,
-                                                    egui::Color32::BLACK,
-                                                ),
-                                            );
-                                        }
-
-                                        UnderlineMode::Thick => {
-                                            ui.painter().line_segment(
-                                                [
-                                                    egui::pos2(
-                                                        response.rect.left(),
-                                                        response.rect.bottom() - 1.0,
-                                                    ),
-                                                    egui::pos2(
-                                                        response.rect.right(),
-                                                        response.rect.bottom() - 1.0,
-                                                    ),
-                                                ],
-                                                egui::Stroke::new(
-                                                    2.0,
-                                                    egui::Color32::BLACK,
-                                                ),
-                                            );
-                                        }
-                                    }
-                                }
-                            });
-                        };
-
-                        let plain_text = line
+                        let text_width = line
                             .segments
                             .iter()
-                            .map(|s| s.text.as_str())
-                            .collect::<String>();
+                            .map(|segment| {
+                                let font_size =
+                                    BASE_FONT_SIZE
+                                        * segment.char_size.height as f32;
 
-                        match line.alignment {
-                            Alignment::Left => {
-                                render_segments(ui);
+                                let font_id =
+                                    egui::FontId::monospace(font_size);
+
+                                ui.fonts_mut(|fonts| {
+                                    fonts
+                                        .layout_no_wrap(
+                                            segment.text.clone(),
+                                            font_id,
+                                            egui::Color32::PLACEHOLDER,
+                                        )
+                                        .size()
+                                        .x
+                                })
+                            })
+                            .sum::<f32>();
+
+                        ui.horizontal(|ui| {
+                            match line.alignment {
+                                Alignment::Left => {}
+
+                                Alignment::Center => {
+                                    let padding =
+                                        ((content_width - text_width) / 2.0)
+                                            .max(0.0);
+
+                                    ui.add_space(padding);
+                                }
+
+                                Alignment::Right => {
+                                    let padding =
+                                        (content_width - text_width)
+                                            .max(0.0);
+
+                                    ui.add_space(padding);
+                                }
                             }
 
-                            Alignment::Center => {
-                                let text_width = line
-                                    .segments
-                                    .iter()
-                                    .map(|segment| {
-                                        let font_size =
-                                            BASE_FONT_SIZE
-                                                * segment.char_size.height as f32;
+                            for segment in &line.segments {
+                                let font_size =
+                                    BASE_FONT_SIZE
+                                        * segment.char_size.height as f32;
 
-                                        let font_id =
-                                            egui::FontId::monospace(font_size);
+                                let mut text =
+                                    egui::RichText::new(&segment.text)
+                                        .font(egui::FontId::monospace(
+                                            font_size,
+                                        ));
 
-                                        ui.fonts_mut(|fonts| {
-                                            fonts
-                                                .layout_no_wrap(
-                                                    segment.text.clone(),
-                                                    font_id,
-                                                    egui::Color32::PLACEHOLDER,
-                                                )
-                                                .size()
-                                                .x
-                                        })
-                                    })
-                                    .sum::<f32>();
+                                if segment.bold {
+                                    text = text
+                                        .color(egui::Color32::BLACK)
+                                        .strong();
+                                } else {
+                                    text = text
+                                        .color(egui::Color32::from_gray(70));
+                                }
 
-                                let paper_width = PAPER_WIDTH - 36.0;
+                                let response = ui.label(text);
 
-                                ui.horizontal(|ui| {
-                                    if paper_width > text_width {
-                                        ui.add_space(
-                                            (paper_width - text_width) / 2.0,
+                                match segment.underline {
+                                    UnderlineMode::Off => {}
+
+                                    UnderlineMode::Thin => {
+                                        ui.painter().line_segment(
+                                            [
+                                                egui::pos2(
+                                                    response.rect.left(),
+                                                    response.rect.bottom() - 1.0,
+                                                ),
+                                                egui::pos2(
+                                                    response.rect.right(),
+                                                    response.rect.bottom() - 1.0,
+                                                ),
+                                            ],
+                                            egui::Stroke::new(
+                                                1.0,
+                                                egui::Color32::BLACK,
+                                            ),
                                         );
                                     }
 
-                                    render_segments(ui);
-                                });
+                                    UnderlineMode::Thick => {
+                                        ui.painter().line_segment(
+                                            [
+                                                egui::pos2(
+                                                    response.rect.left(),
+                                                    response.rect.bottom() - 1.0,
+                                                ),
+                                                egui::pos2(
+                                                    response.rect.right(),
+                                                    response.rect.bottom() - 1.0,
+                                                ),
+                                            ],
+                                            egui::Stroke::new(
+                                                2.0,
+                                                egui::Color32::BLACK,
+                                            ),
+                                        );
+                                    }
+                                }
                             }
-
-                            Alignment::Right => {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(
-                                        egui::Align::Center,
-                                    ),
-                                    |ui| {
-                                        render_segments(ui);
-                                    },
-                                );
-                            }
-                        }
+                        });
                     }
                 }
-
-                ui.add_space(8.0);
             });
         });
 }
