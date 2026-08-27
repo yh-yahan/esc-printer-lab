@@ -2,29 +2,22 @@
 
 ESC/POS thermal receipt printer emulator written in Rust.
 
-It listens for ESC/POS data over TCP and shows a live visual preview of the receipt, along with debug information.
-
----
+Listens for ESC/POS data over TCP and shows a live visual preview of the receipt, along with debug information.
 
 ## Current Status
 
 Currently supported commands:
 
-- `ESC @` — Initialize
-- `ESC a n` — Alignment (Left / Center / Right)
-- `ESC E n` — Bold on/off
-- `ESC - n` — Underline (Off / Thin / Thick)
-- `GS V n` — Paper cut
-- `LF` (`0x0A`) — Line feed
-- Plain text
-
-Missing (planned):
-- Font size / double width & height
-- Character code pages
-- Images / raster bitmaps
-- Barcodes & QR codes
-
----
+| Command | Function |
+|---|---|
+| `ESC @` | Initialize |
+| `ESC a n` | Set text alignment |
+| `ESC E n` | Set bold |
+| `ESC - n` | Set underline style |
+| `GS V n` | Cut paper |
+| `GS ! n` | Set character size |
+| `LF` (`0x0A`) | Line feed |
+| Plain text | Print text |
 
 ## How to Run
 
