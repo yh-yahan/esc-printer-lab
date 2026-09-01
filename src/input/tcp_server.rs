@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use crate::parser::parser::Parser;
 use crate::receipt::builder::ReceiptBuilder;
 use crate::shared::print_session::PrintSession;
-use crate::shared::escpos_formatter::EscPosFormatter;
 
 pub fn start(addr: &str, session: Arc<Mutex<PrintSession>>) -> std::io::Result<()> {
     let listener = TcpListener::bind(addr)?;
@@ -44,23 +43,15 @@ fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
 
                 println!("Received {} bytes", bytes_read);
                 println!("{:?}", data);
+
                 session.lock().unwrap().push_raw(data);
 
                 let commands = parser.feed(data);
 
-                let escpos_lines = EscPosFormatter::format(data);
-
-                session.lock().unwrap().escpos_output.extend(escpos_lines);
-
-                for cmd in &commands {
-                    println!("{:?}", cmd);
-                }
-
                 for cmd in commands {
-                    session
-                        .lock()
-                        .unwrap()
-                        .push_parser(format!("{:?}", cmd));
+                    println!("{:?}", cmd);
+
+                    session.lock().unwrap().push_command(cmd.clone());
 
                     builder.process(&cmd);
                 }
@@ -71,6 +62,16 @@ fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
                 break;
             }
         }
+    }
+
+    let remaining_commands = parser.finish();
+
+    for cmd in remaining_commands {
+        println!("{:?}", cmd);
+
+        session.lock().unwrap().push_command(cmd.clone());
+
+        builder.process(&cmd);
     }
 
     let receipt = builder.build();

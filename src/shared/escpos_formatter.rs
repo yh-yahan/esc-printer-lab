@@ -1,92 +1,42 @@
+use crate::parser::command::{Alignment, Command, CutMode, UnderlineMode};
+
 pub struct EscPosFormatter;
 
 impl EscPosFormatter {
-    pub fn format(bytes: &[u8]) -> Vec<String> {
-        let mut out = Vec::new();
-        let mut i = 0;
-
-        while i < bytes.len() {
-            let b = bytes[i];
-
-            match b {
-                0x1B => {
-                    i += 1;
-                    if i >= bytes.len() { break; }
-
-                    match bytes[i] {
-                        0x40 => out.push("ESC @".into()),
-                        0x61 => {
-                            i += 1;
-                            if i < bytes.len() {
-                                out.push(format!("ESC a {}", bytes[i]));
-                            }
-                        }
-                        0x45 => {
-                            i += 1;
-                            if i < bytes.len() {
-                                out.push(format!("ESC E {}", bytes[i]));
-                            }
-                        }
-                        0x2D => {
-                            i += 1;
-                            if i < bytes.len() {
-                                out.push(format!("ESC - {}", bytes[i]));
-                            }
-                        }
-                        _ => out.push(format!("ESC ? {:02X}", bytes[i])),
-                    }
-                }
-
-                0x1D => {
-                    i += 1;
-                    if i >= bytes.len() { break; }
-
-                    match bytes[i] {
-                        0x21 => {
-                            i += 1;
-                            if i < bytes.len() {
-                                let n = bytes[i];
-
-                                out.push(format!("GS ! {:02X}", n));
-                            }
-                        }
-
-                        0x56 => {
-                            i += 1;
-                            if i < bytes.len() {
-                                out.push(format!("GS V {}", bytes[i]));
-                            }
-                        }
-                        _ => out.push(format!("GS ? {:02X}", bytes[i])),
-                    }
-                }
-
-                0x0A => out.push("LF".into()),
-
-                printable if printable >= 0x20 && printable <= 0x7E => {
-                    let start = i;
-
-                    while i < bytes.len()
-                        && bytes[i] >= 0x20
-                        && bytes[i] <= 0x7E
-                    {
-                        i += 1;
-                    }
-
-                    let text = String::from_utf8_lossy(&bytes[start..i]).to_string();
-                    out.push(format!("\"{}\"", text));
-
-                    continue;
-                }
-
-                other => {
-                    out.push(format!("0x{:02X}", other));
-                }
+    pub fn format_command(command: &Command) -> String {
+        match command {
+            Command::Initialize => "ESC @".into(),
+            Command::LineFeed => "LF".into(),
+            Command::Text(text) => format!("\"{text}\""),
+            Command::Bold(on) => format!("ESC E {}", *on as u8),
+            Command::Align(align) => {
+                let n = match align {
+                    Alignment::Left => 0,
+                    Alignment::Center => 1,
+                    Alignment::Right => 2,
+                };
+                format!("ESC a {n}")
             }
-
-            i += 1;
+            Command::Underline(mode) => {
+                let n = match mode {
+                    UnderlineMode::Off => 0,
+                    UnderlineMode::Thin => 1,
+                    UnderlineMode::Thick => 2,
+                };
+                format!("ESC - {n}")
+            }
+            Command::Cut(mode) => {
+                let n = match mode {
+                    CutMode::Full => 0,
+                    CutMode::Partial => 1,
+                };
+                format!("GS V {n}")
+            }
+            Command::CharSize(size) => {
+                let n = ((size.width.saturating_sub(1) & 0x07) << 4)
+                    | (size.height.saturating_sub(1) & 0x07);
+                format!("GS ! {n:02X}")
+            }
         }
-
-        out
     }
 }

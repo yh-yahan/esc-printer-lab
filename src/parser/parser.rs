@@ -21,6 +21,12 @@ impl Parser {
             self.process_byte(byte, &mut commands);
         }
 
+        commands
+    }
+
+    pub fn finish(&mut self) -> Vec<Command> {
+        let mut commands = Vec::new();
+
         self.flush_text(&mut commands);
 
         commands

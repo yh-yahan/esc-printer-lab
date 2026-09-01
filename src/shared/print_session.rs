@@ -1,10 +1,10 @@
+use crate::parser::command::Command;
 use crate::receipt::receipt::Receipt;
 
 #[derive(Default)]
 pub struct PrintSession {
-    pub raw_chunks: Vec<Vec<u8>>,
-    pub parser_output: Vec<String>,
-    pub escpos_output: Vec<String>,
+    pub raw: Vec<u8>,
+    pub commands: Vec<Command>,
     pub receipts: Vec<Receipt>,
 }
 
@@ -14,11 +14,11 @@ impl PrintSession {
     }
 
     pub fn push_raw(&mut self, data: &[u8]) {
-        self.raw_chunks.push(data.to_vec());
+        self.raw.extend_from_slice(data);
     }
 
-    pub fn push_parser(&mut self, msg: impl Into<String>) {
-        self.parser_output.push(msg.into());
+    pub fn push_command(&mut self, command: Command) {
+        self.commands.push(command);
     }
 
     pub fn push_receipt(&mut self, receipt: Receipt) {
@@ -26,9 +26,8 @@ impl PrintSession {
     }
 
     pub fn clear(&mut self) {
-        self.escpos_output.clear();
-        self.raw_chunks.clear();
-        self.parser_output.clear();
+        self.raw.clear();
+        self.commands.clear();
         self.receipts.clear();
     }
 }

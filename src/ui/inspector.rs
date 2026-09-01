@@ -1,6 +1,7 @@
 use eframe::egui;
 use std::sync::{Arc, Mutex};
 
+use crate::shared::escpos_formatter::EscPosFormatter;
 use crate::shared::print_session::PrintSession;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,11 +53,13 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
             .show(ui, |ui| {
                 match tab {
                     InspectorTab::EscPos => {
-                        if session.escpos_output.is_empty() {
+                        if session.commands.is_empty() {
                             ui.label("No data yet");
                         } else {
-                            for line in &session.escpos_output {
-                                ui.monospace(line);
+                            for command in &session.commands {
+                                ui.monospace(
+                                    EscPosFormatter::format_command(command),
+                                );
                             }
                         }
                     }
@@ -74,10 +77,10 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                     }
 
                     InspectorTab::Hex => {
-                        if session.raw_chunks.is_empty() {
+                        if session.raw.is_empty() {
                             ui.label("No data yet");
                         } else {
-                            for chunk in &session.raw_chunks {
+                            for chunk in session.raw.chunks(16) {
                                 let hex: String = chunk
                                     .iter()
                                     .map(|b| format!("{:02X} ", b))
@@ -89,20 +92,20 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                     }
 
                     InspectorTab::Parser => {
-                        if session.parser_output.is_empty() {
+                        if session.commands.is_empty() {
                             ui.label("No data yet");
                         } else {
-                            for line in &session.parser_output {
-                                ui.monospace(line);
+                            for command in &session.commands {
+                                ui.monospace(format!("{:?}", command));
                             }
                         }
                     }
 
                     InspectorTab::Raw => {
-                        if session.raw_chunks.is_empty() {
+                        if session.raw.is_empty() {
                             ui.label("No data yet");
                         } else {
-                            for chunk in &session.raw_chunks {
+                            for chunk in session.raw.chunks(16) {
                                 ui.monospace(format!("{:?}", chunk));
                             }
                         }
