@@ -2,6 +2,7 @@ use eframe::egui;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
+use crate::parser::command::Command;
 use crate::shared::escpos_formatter::EscPosFormatter;
 use crate::shared::print_session::PrintSession;
 
@@ -20,6 +21,19 @@ pub struct InspectorViewer<'a> {
 }
 
 impl InspectorViewer<'_> {
+    fn command_color(command: &Command) -> egui::Color32 {
+        match command {
+            Command::Initialize => egui::Color32::from_rgb(100, 180, 255),
+            Command::LineFeed => egui::Color32::from_rgb(180, 180, 180),
+            Command::Text(_) => egui::Color32::from_rgb(220, 220, 220),
+            Command::Bold(_) => egui::Color32::from_rgb(255, 190, 80),
+            Command::Align(_) => egui::Color32::from_rgb(180, 130, 255),
+            Command::Underline(_) => egui::Color32::from_rgb(255, 120, 180),
+            Command::Cut(_) => egui::Color32::from_rgb(255, 100, 100),
+            Command::CharSize(_) => egui::Color32::from_rgb(100, 220, 160),
+        }
+    }
+
     fn visualize_leading_spaces(s: &str) -> String {
         s.lines()
             .map(|line| {
@@ -66,9 +80,14 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                             ui.label("No data yet");
                         } else {
                             for parsed in &session.commands {
+                                let text = EscPosFormatter::format_command(&parsed.command);
+                                let color = Self::command_color(&parsed.command);
+
                                 let response = ui.selectable_label(
                                     self.command_hovered(&parsed.span),
-                                    EscPosFormatter::format_command(&parsed.command),
+                                    egui::RichText::new(text)
+                                        .monospace()
+                                        .color(color),
                                 );
 
                                 if response.hovered() {
