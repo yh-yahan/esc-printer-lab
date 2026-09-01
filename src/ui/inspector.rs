@@ -34,6 +34,32 @@ impl InspectorViewer<'_> {
         }
     }
 
+    fn show_command_docs(ui: &mut egui::Ui, command: &Command) {
+        let spec = command.spec();
+
+        ui.strong(spec.name);
+        ui.monospace(format!("{}    {}", spec.mnemonic, spec.hex));
+        ui.label(spec.summary);
+
+        let params = command.param_lines();
+        if !params.is_empty() {
+            ui.add_space(4.0);
+            for line in params {
+                ui.monospace(line);
+            }
+        }
+
+        if !spec.notes.is_empty() {
+            ui.add_space(4.0);
+            ui.weak(spec.notes);
+        }
+
+        if let Some(url) = spec.docs_url {
+            ui.add_space(6.0);
+            ui.hyperlink_to("Epson command reference", url);
+        }
+    }
+
     fn visualize_leading_spaces(s: &str) -> String {
         s.lines()
             .map(|line| {
@@ -85,14 +111,16 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
 
                                 let response = ui.selectable_label(
                                     self.command_hovered(&parsed.span),
-                                    egui::RichText::new(text)
-                                        .monospace()
-                                        .color(color),
+                                    egui::RichText::new(text).monospace().color(color),
                                 );
 
                                 if response.hovered() {
                                     *self.next_hovered_span = Some(parsed.span.clone());
                                 }
+
+                                response.on_hover_ui(|ui| {
+                                    Self::show_command_docs(ui, &parsed.command);
+                                });
                             }
                         }
                     }
@@ -102,14 +130,22 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                             ui.label("No data yet");
                         } else {
                             for parsed in &session.commands {
+                                let color = Self::command_color(&parsed.command);
+
                                 let response = ui.selectable_label(
                                     self.command_hovered(&parsed.span),
-                                    format!("{:?}", parsed.command),
+                                    egui::RichText::new(format!("{:?}", parsed.command))
+                                        .monospace()
+                                        .color(color),
                                 );
 
                                 if response.hovered() {
                                     *self.next_hovered_span = Some(parsed.span.clone());
                                 }
+
+                                response.on_hover_ui(|ui| {
+                                    Self::show_command_docs(ui, &parsed.command);
+                                });
                             }
                         }
                     }
@@ -125,20 +161,36 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                                     for (index, byte) in chunk.iter().enumerate() {
                                         let byte_index = chunk_start + index;
 
+                                        let parsed = session
+                                            .commands
+                                            .iter()
+                                            .find(|command| command.span.contains(&byte_index));
+
+                                        let color = parsed
+                                            .map(|parsed| Self::command_color(&parsed.command));
+
+                                        let mut label = egui::RichText::new(format!("{:02X}", byte))
+                                            .monospace();
+
+                                        if let Some(color) = color {
+                                            label = label.color(color);
+                                        }
+
                                         let response = ui.selectable_label(
                                             self.byte_hovered(byte_index),
-                                            format!("{:02X}", byte),
+                                            label,
                                         );
 
                                         if response.hovered() {
-                                            if let Some(command) = session
-                                                .commands
-                                                .iter()
-                                                .find(|command| command.span.contains(&byte_index))
-                                            {
-                                                *self.next_hovered_span =
-                                                    Some(command.span.clone());
+                                            if let Some(parsed) = parsed {
+                                                *self.next_hovered_span = Some(parsed.span.clone());
                                             }
+                                        }
+
+                                        if let Some(parsed) = parsed {
+                                            response.on_hover_ui(|ui| {
+                                                Self::show_command_docs(ui, &parsed.command);
+                                            });
                                         }
                                     }
                                 });
