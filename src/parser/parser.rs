@@ -1,9 +1,14 @@
-use super::command::{Alignment, UnderlineMode, CutMode, CharSize, Command};
+use super::command::{Alignment, CharSize, Command, CutMode, UnderlineMode};
 use super::state::ParserState;
+
+use crate::shared::print_session::ParsedCommand;
 
 pub struct Parser {
     state: ParserState,
     text_buffer: String,
+    offset: usize,
+    command_start: Option<usize>,
+    text_start: Option<usize>,
 }
 
 impl Parser {
@@ -11,20 +16,24 @@ impl Parser {
         Self {
             state: ParserState::Normal,
             text_buffer: String::new(),
+            offset: 0,
+            command_start: None,
+            text_start: None,
         }
     }
 
-    pub fn feed(&mut self, bytes: &[u8]) -> Vec<Command> {
+    pub fn feed(&mut self, bytes: &[u8]) -> Vec<ParsedCommand> {
         let mut commands = Vec::new();
 
         for &byte in bytes {
             self.process_byte(byte, &mut commands);
+            self.offset += 1;
         }
 
         commands
     }
 
-    pub fn finish(&mut self) -> Vec<Command> {
+    pub fn finish(&mut self) -> Vec<ParsedCommand> {
         let mut commands = Vec::new();
 
         self.flush_text(&mut commands);
@@ -32,10 +41,17 @@ impl Parser {
         commands
     }
 
-    fn flush_text(&mut self, commands: &mut Vec<Command>) {
+    fn flush_text(&mut self, commands: &mut Vec<ParsedCommand>) {
         if !self.text_buffer.is_empty() {
-            commands.push(Command::Text(self.text_buffer.clone()));
+            let start = self.text_start.unwrap_or(self.offset);
+
+            commands.push(ParsedCommand {
+                command: Command::Text(self.text_buffer.clone()),
+                span: start..self.offset,
+            });
+
             self.text_buffer.clear();
+            self.text_start = None;
         }
     }
 
@@ -44,10 +60,25 @@ impl Parser {
             return;
         }
 
+        if self.text_start.is_none() {
+            self.text_start = Some(self.offset);
+        }
+
         self.text_buffer.push(byte as char);
     }
 
-    fn process_byte(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn push_command(&mut self, command: Command, end: usize, commands: &mut Vec<ParsedCommand>) {
+        let start = self.command_start.unwrap_or(self.offset);
+
+        commands.push(ParsedCommand {
+            command,
+            span: start..end,
+        });
+
+        self.command_start = None;
+    }
+
+    fn process_byte(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match self.state {
             ParserState::Normal => self.handle_normal(byte, commands),
             ParserState::Esc => self.handle_esc(byte, commands),
@@ -60,20 +91,29 @@ impl Parser {
         }
     }
 
-    fn handle_normal(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_normal(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match byte {
             0x1B => {
                 self.flush_text(commands);
+
+                self.command_start = Some(self.offset);
                 self.state = ParserState::Esc;
             }
 
             0x0A => {
                 self.flush_text(commands);
-                commands.push(Command::LineFeed);
+
+                self.push_command(
+                    Command::LineFeed,
+                    self.offset + 1,
+                    commands,
+                );
             }
 
             0x1D => {
                 self.flush_text(commands);
+
+                self.command_start = Some(self.offset);
                 self.state = ParserState::Gs;
             }
 
@@ -83,11 +123,17 @@ impl Parser {
         }
     }
 
-    fn handle_esc(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_esc(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match byte {
             0x40 => {
                 self.flush_text(commands);
-                commands.push(Command::Initialize);
+
+                self.push_command(
+                    Command::Initialize,
+                    self.offset + 1,
+                    commands,
+                );
+
                 self.state = ParserState::Normal;
             }
 
@@ -104,12 +150,13 @@ impl Parser {
             }
 
             _ => {
+                self.command_start = None;
                 self.state = ParserState::Normal;
             }
         }
     }
 
-    fn handle_esc_alignment(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_esc_alignment(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         self.flush_text(commands);
 
         let align = match byte {
@@ -120,23 +167,33 @@ impl Parser {
         };
 
         if let Some(align) = align {
-            commands.push(Command::Align(align));
+            self.push_command(
+                Command::Align(align),
+                self.offset + 1,
+                commands,
+            );
+        } else {
+            self.command_start = None;
         }
 
         self.state = ParserState::Normal;
     }
 
-    fn handle_esc_emphasis(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_esc_emphasis(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         self.flush_text(commands);
 
         let enabled = (byte & 0x01) != 0;
 
-        commands.push(Command::Bold(enabled));
+        self.push_command(
+            Command::Bold(enabled),
+            self.offset + 1,
+            commands,
+        );
 
         self.state = ParserState::Normal;
     }
 
-    fn handle_esc_underline(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_esc_underline(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         self.flush_text(commands);
 
         let underline = match byte {
@@ -147,7 +204,13 @@ impl Parser {
         };
 
         if let Some(underline) = underline {
-            commands.push(Command::Underline(underline));
+            self.push_command(
+                Command::Underline(underline),
+                self.offset + 1,
+                commands,
+            );
+        } else {
+            self.command_start = None;
         }
 
         self.state = ParserState::Normal;
@@ -164,12 +227,13 @@ impl Parser {
             }
 
             _ => {
+                self.command_start = None;
                 self.state = ParserState::Normal;
             }
         }
     }
 
-    fn handle_gs_cut(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_gs_cut(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         self.flush_text(commands);
 
         let cut = match byte {
@@ -179,20 +243,27 @@ impl Parser {
         };
 
         if let Some(cut) = cut {
-            commands.push(Command::Cut(cut));
+            self.push_command(
+                Command::Cut(cut),
+                self.offset + 1,
+                commands,
+            );
+        } else {
+            self.command_start = None;
         }
 
         self.state = ParserState::Normal;
     }
 
-    fn handle_gs_char_size(&mut self, byte: u8, commands: &mut Vec<Command>) {
+    fn handle_gs_char_size(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         let width = ((byte >> 4) & 0x07) + 1;
         let height = (byte & 0x07) + 1;
 
-        commands.push(Command::CharSize(CharSize {
-            width,
-            height,
-        }));
+        self.push_command(
+            Command::CharSize(CharSize { width, height }),
+            self.offset + 1,
+            commands,
+        );
 
         self.state = ParserState::Normal;
     }

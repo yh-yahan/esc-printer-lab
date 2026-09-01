@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
 use crate::shared::escpos_formatter::EscPosFormatter;
@@ -9,12 +10,13 @@ pub enum InspectorTab {
     Receipt,
     Hex,
     Parser,
-    Raw,
     EscPos,
 }
 
 pub struct InspectorViewer<'a> {
     pub session: &'a Arc<Mutex<PrintSession>>,
+    pub hovered_span: Option<Range<usize>>,
+    pub next_hovered_span: &'a mut Option<Range<usize>>,
 }
 
 impl InspectorViewer<'_> {
@@ -22,12 +24,20 @@ impl InspectorViewer<'_> {
         s.lines()
             .map(|line| {
                 let leading = line.len() - line.trim_start().len();
-                let visible_spaces = "·".repeat(leading);
-
-                format!("{}{}", visible_spaces, line.trim_start())
+                format!("{}{}", "·".repeat(leading), line.trim_start())
             })
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    fn command_hovered(&self, span: &Range<usize>) -> bool {
+        self.hovered_span.as_ref() == Some(span)
+    }
+
+    fn byte_hovered(&self, index: usize) -> bool {
+        self.hovered_span
+            .as_ref()
+            .is_some_and(|span| span.contains(&index))
     }
 }
 
@@ -40,7 +50,6 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
             InspectorTab::Receipt => "Receipt".into(),
             InspectorTab::Hex => "Hex".into(),
             InspectorTab::Parser => "Parser".into(),
-            InspectorTab::Raw => "Raw".into(),
         }
     }
 
@@ -56,10 +65,64 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                         if session.commands.is_empty() {
                             ui.label("No data yet");
                         } else {
-                            for command in &session.commands {
-                                ui.monospace(
-                                    EscPosFormatter::format_command(command),
+                            for parsed in &session.commands {
+                                let response = ui.selectable_label(
+                                    self.command_hovered(&parsed.span),
+                                    EscPosFormatter::format_command(&parsed.command),
                                 );
+
+                                if response.hovered() {
+                                    *self.next_hovered_span = Some(parsed.span.clone());
+                                }
+                            }
+                        }
+                    }
+
+                    InspectorTab::Parser => {
+                        if session.commands.is_empty() {
+                            ui.label("No data yet");
+                        } else {
+                            for parsed in &session.commands {
+                                let response = ui.selectable_label(
+                                    self.command_hovered(&parsed.span),
+                                    format!("{:?}", parsed.command),
+                                );
+
+                                if response.hovered() {
+                                    *self.next_hovered_span = Some(parsed.span.clone());
+                                }
+                            }
+                        }
+                    }
+
+                    InspectorTab::Hex => {
+                        if session.raw.is_empty() {
+                            ui.label("No data yet");
+                        } else {
+                            for (chunk_index, chunk) in session.raw.chunks(16).enumerate() {
+                                let chunk_start = chunk_index * 16;
+
+                                ui.horizontal(|ui| {
+                                    for (index, byte) in chunk.iter().enumerate() {
+                                        let byte_index = chunk_start + index;
+
+                                        let response = ui.selectable_label(
+                                            self.byte_hovered(byte_index),
+                                            format!("{:02X}", byte),
+                                        );
+
+                                        if response.hovered() {
+                                            if let Some(command) = session
+                                                .commands
+                                                .iter()
+                                                .find(|command| command.span.contains(&byte_index))
+                                            {
+                                                *self.next_hovered_span =
+                                                    Some(command.span.clone());
+                                            }
+                                        }
+                                    }
+                                });
                             }
                         }
                     }
@@ -69,44 +132,10 @@ impl egui_dock::TabViewer for InspectorViewer<'_> {
                             ui.label("No data yet");
                         } else {
                             for receipt in &session.receipts {
-                                ui.monospace(Self::visualize_leading_spaces(
-                                    &format!("{:#?}", receipt),
-                                ));
-                            }
-                        }
-                    }
-
-                    InspectorTab::Hex => {
-                        if session.raw.is_empty() {
-                            ui.label("No data yet");
-                        } else {
-                            for chunk in session.raw.chunks(16) {
-                                let hex: String = chunk
-                                    .iter()
-                                    .map(|b| format!("{:02X} ", b))
-                                    .collect();
-
-                                ui.monospace(hex);
-                            }
-                        }
-                    }
-
-                    InspectorTab::Parser => {
-                        if session.commands.is_empty() {
-                            ui.label("No data yet");
-                        } else {
-                            for command in &session.commands {
-                                ui.monospace(format!("{:?}", command));
-                            }
-                        }
-                    }
-
-                    InspectorTab::Raw => {
-                        if session.raw.is_empty() {
-                            ui.label("No data yet");
-                        } else {
-                            for chunk in session.raw.chunks(16) {
-                                ui.monospace(format!("{:?}", chunk));
+                                ui.monospace(Self::visualize_leading_spaces(&format!(
+                                    "{:#?}",
+                                    receipt
+                                )));
                             }
                         }
                     }

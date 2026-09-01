@@ -50,10 +50,8 @@ fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
 
                 for cmd in commands {
                     println!("{:?}", cmd);
-
-                    session.lock().unwrap().push_command(cmd.clone());
-
-                    builder.process(&cmd);
+                    builder.process(&cmd.command);
+                    session.lock().unwrap().push_command(cmd);
                 }
             }
 
@@ -68,10 +66,8 @@ fn handle_client(mut stream: TcpStream, session: Arc<Mutex<PrintSession>>) {
 
     for cmd in remaining_commands {
         println!("{:?}", cmd);
-
-        session.lock().unwrap().push_command(cmd.clone());
-
-        builder.process(&cmd);
+        builder.process(&cmd.command);
+        session.lock().unwrap().push_command(cmd);
     }
 
     let receipt = builder.build();

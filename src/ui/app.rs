@@ -1,5 +1,6 @@
 use eframe::egui;
 use egui_dock::{DockArea, DockState, Style, TabViewer};
+use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
 use crate::receipt::receipt::Receipt;
@@ -21,7 +22,6 @@ impl AppTab {
             Self::Inspector(InspectorTab::Receipt) => "Receipt",
             Self::Inspector(InspectorTab::Hex) => "Hex",
             Self::Inspector(InspectorTab::Parser) => "Parser",
-            Self::Inspector(InspectorTab::Raw) => "Raw",
         }
     }
 }
@@ -29,6 +29,7 @@ impl AppTab {
 pub struct App {
     session: Arc<Mutex<PrintSession>>,
     dock_state: DockState<AppTab>,
+    hovered_span: Option<Range<usize>>,
 }
 
 impl App {
@@ -45,7 +46,6 @@ impl App {
                 AppTab::Inspector(InspectorTab::Receipt),
                 AppTab::Inspector(InspectorTab::Hex),
                 AppTab::Inspector(InspectorTab::Parser),
-                AppTab::Inspector(InspectorTab::Raw),
             ],
         );
 
@@ -55,40 +55,15 @@ impl App {
         Self {
             session,
             dock_state,
+            hovered_span: None,
         }
-    }
-
-    fn show_receipt_preview(&self, ui: &mut egui::Ui) {
-        egui::ScrollArea::vertical()
-            .id_salt("receipt_preview_scroll")
-            .auto_shrink([false; 2])
-            .show(ui, |ui| {
-                let session = self.session.lock().unwrap();
-
-                ui.vertical_centered(|ui| {
-                    if session.receipts.is_empty() {
-                        render_receipt(ui, &Receipt { items: vec![] });
-                    } else {
-                        let mut combined_items = Vec::new();
-
-                        for receipt in &session.receipts {
-                            combined_items.extend(receipt.items.iter().cloned());
-                        }
-
-                        render_receipt(
-                            ui,
-                            &Receipt {
-                                items: combined_items,
-                            },
-                        );
-                    }
-                });
-            });
     }
 }
 
 struct AppViewer<'a> {
     session: &'a Arc<Mutex<PrintSession>>,
+    hovered_span: Option<Range<usize>>,
+    next_hovered_span: &'a mut Option<Range<usize>>,
 }
 
 impl TabViewer for AppViewer<'_> {
@@ -107,6 +82,8 @@ impl TabViewer for AppViewer<'_> {
             AppTab::Inspector(inspector_tab) => {
                 let mut viewer = InspectorViewer {
                     session: self.session,
+                    hovered_span: self.hovered_span.clone(),
+                    next_hovered_span: self.next_hovered_span,
                 };
 
                 viewer.ui(ui, inspector_tab);
@@ -169,31 +146,39 @@ impl eframe::App for App {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(format!("Receipts: {}", receipt_count)));
 
-            ui.with_layout(
-                egui::Layout::right_to_left(egui::Align::Center),
-                |ui| {
-                    let clear_button = egui::Button::new(
-                        egui::RichText::new("Clear").strong(),
-                    )
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let clear_button = egui::Button::new(egui::RichText::new("Clear").strong())
                     .min_size(egui::vec2(100.0, 32.0));
 
-                    if ui.add(clear_button).clicked() {
-                        self.session.lock().unwrap().clear();
-                    }
-                },
-            );
+                if ui.add(clear_button).clicked() {
+                    self.session.lock().unwrap().clear();
+                    self.hovered_span = None;
+                }
+            });
         });
 
         ui.separator();
 
-        let mut viewer = AppViewer {
-            session: &self.session,
-        };
+        let mut next_hovered_span = None;
 
-        let style = Style::from_egui(ui.style());
+        {
+            let mut viewer = AppViewer {
+                session: &self.session,
+                hovered_span: self.hovered_span.clone(),
+                next_hovered_span: &mut next_hovered_span,
+            };
 
-        DockArea::new(&mut self.dock_state)
-            .style(style)
-            .show_inside(ui, &mut viewer);
+            let style = Style::from_egui(ui.style());
+
+            DockArea::new(&mut self.dock_state)
+                .style(style)
+                .show_inside(ui, &mut viewer);
+        }
+
+        if self.hovered_span != next_hovered_span {
+            ui.ctx().request_repaint();
+        }
+
+        self.hovered_span = next_hovered_span;
     }
 }

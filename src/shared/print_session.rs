@@ -1,10 +1,18 @@
+use std::ops::Range;
+
 use crate::parser::command::Command;
 use crate::receipt::receipt::Receipt;
+
+#[derive(Clone, Debug)]
+pub struct ParsedCommand {
+    pub command: Command,
+    pub span: Range<usize>,
+}
 
 #[derive(Default)]
 pub struct PrintSession {
     pub raw: Vec<u8>,
-    pub commands: Vec<Command>,
+    pub commands: Vec<ParsedCommand>,
     pub receipts: Vec<Receipt>,
 }
 
@@ -17,7 +25,7 @@ impl PrintSession {
         self.raw.extend_from_slice(data);
     }
 
-    pub fn push_command(&mut self, command: Command) {
+    pub fn push_command(&mut self, command: ParsedCommand) {
         self.commands.push(command);
     }
 
