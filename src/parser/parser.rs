@@ -78,6 +78,17 @@ impl Parser {
         self.command_start = None;
     }
 
+    fn push_unknown(&mut self, bytes: Vec<u8>, commands: &mut Vec<ParsedCommand>) {
+        let start = self.command_start.unwrap_or(self.offset);
+
+        commands.push(ParsedCommand {
+            command: Command::Unknown(bytes),
+            span: start..self.offset + 1,
+        });
+
+        self.command_start = None;
+    }
+
     fn process_byte(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match self.state {
             ParserState::Normal => self.handle_normal(byte, commands),
@@ -85,7 +96,7 @@ impl Parser {
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
             ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
             ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
-            ParserState::Gs => self.handle_gs(byte),
+            ParserState::Gs => self.handle_gs(byte, commands),
             ParserState::GsCut => self.handle_gs_cut(byte, commands),
             ParserState::GsCharSize => self.handle_gs_char_size(byte, commands),
         }
@@ -150,7 +161,13 @@ impl Parser {
             }
 
             _ => {
-                self.command_start = None;
+                self.flush_text(commands);
+
+                self.push_unknown(
+                    vec![0x1B, byte],
+                    commands,
+                );
+
                 self.state = ParserState::Normal;
             }
         }
@@ -173,7 +190,10 @@ impl Parser {
                 commands,
             );
         } else {
-            self.command_start = None;
+            self.push_unknown(
+                vec![0x1B, 0x61, byte],
+                commands,
+            );
         }
 
         self.state = ParserState::Normal;
@@ -210,13 +230,16 @@ impl Parser {
                 commands,
             );
         } else {
-            self.command_start = None;
+            self.push_unknown(
+                vec![0x1B, 0x2D, byte],
+                commands,
+            );
         }
 
         self.state = ParserState::Normal;
     }
 
-    fn handle_gs(&mut self, byte: u8) {
+    fn handle_gs(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match byte {
             0x21 => {
                 self.state = ParserState::GsCharSize;
@@ -227,7 +250,13 @@ impl Parser {
             }
 
             _ => {
-                self.command_start = None;
+                self.flush_text(commands);
+
+                self.push_unknown(
+                    vec![0x1D, byte],
+                    commands,
+                );
+
                 self.state = ParserState::Normal;
             }
         }
@@ -249,7 +278,10 @@ impl Parser {
                 commands,
             );
         } else {
-            self.command_start = None;
+            self.push_unknown(
+                vec![0x1D, 0x56, byte],
+                commands,
+            );
         }
 
         self.state = ParserState::Normal;

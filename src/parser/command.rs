@@ -8,6 +8,7 @@ pub enum Command {
     Underline(UnderlineMode),
     Cut(CutMode),
     CharSize(CharSize),
+    Unknown(Vec<u8>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,4 +36,3 @@ pub struct CharSize {
     pub width: u8,
     pub height: u8,
 }
-

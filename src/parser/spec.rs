@@ -95,6 +95,15 @@ impl Command {
                 docs_url: None,
                 category: CommandCategory::Text,
             },
+            Command::Unknown(_) => CommandSpec {
+                name: "Unknown command",
+                mnemonic: "unknown",
+                hex: "raw bytes",
+                summary: "Command bytes that are not currently recognized by the parser.",
+                notes: "May be a valid ESC/POS command that is not yet supported by the emulator, or invalid command data.",
+                docs_url: None,
+                category: CommandCategory::Control,
+            },
         }
     }
 
@@ -125,6 +134,9 @@ impl Command {
             ],
             Command::Text(text) => vec![format!("{} byte(s)", text.len())],
             Command::Initialize | Command::LineFeed => vec![],
+            Command::Unknown(bytes) => vec![
+                format!("{} byte(s)", bytes.len()),
+            ],
         }
     }
 }

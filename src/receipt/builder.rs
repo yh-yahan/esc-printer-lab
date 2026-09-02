@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, Command, CharSize, UnderlineMode};
+use crate::parser::command::{Alignment, CharSize, Command, UnderlineMode};
 
 use super::receipt::{
     Receipt,
@@ -74,6 +74,10 @@ impl ReceiptBuilder {
                     ReceiptEvent::Cut(*cut_mode)
                 );
             }
+
+            Command::Unknown(_) => {
+                // unknown commands do not affect the receipt preview
+            }
         }
     }
 
@@ -99,4 +103,3 @@ impl ReceiptBuilder {
         });
     }
 }
-

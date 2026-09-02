@@ -37,6 +37,15 @@ impl EscPosFormatter {
                     | (size.height.saturating_sub(1) & 0x07);
                 format!("GS ! {n:02X}")
             }
+
+            Command::Unknown(bytes) => {
+                let hex = bytes.iter()
+                    .map(|byte| format!("{byte:02X}"))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                format!("UNKNOWN [{hex}]")
+            }
         }
     }
 }
