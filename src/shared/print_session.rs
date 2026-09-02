@@ -9,16 +9,23 @@ pub struct ParsedCommand {
     pub span: Range<usize>,
 }
 
-#[derive(Default)]
 pub struct PrintSession {
     pub raw: Vec<u8>,
     pub commands: Vec<ParsedCommand>,
     pub receipts: Vec<Receipt>,
+    pub current: Receipt,
+    pub epoch: u64,
 }
 
 impl PrintSession {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            raw: Vec::new(),
+            commands: Vec::new(),
+            receipts: Vec::new(),
+            current: Receipt::new(),
+            epoch: 0,
+        }
     }
 
     pub fn push_raw(&mut self, data: &[u8]) {
@@ -29,13 +36,28 @@ impl PrintSession {
         self.commands.push(command);
     }
 
-    pub fn push_receipt(&mut self, receipt: Receipt) {
-        self.receipts.push(receipt);
+    pub fn update_current(&mut self, receipt: Receipt) {
+        self.current = receipt;
+    }
+
+    pub fn commit_current(&mut self) {
+        if self.current.items.is_empty() {
+            return;
+        }
+
+        let done = std::mem::take(&mut self.current);
+        self.receipts.push(done);
+    }
+
+    pub fn ticket_count(&self) -> usize {
+        self.receipts.len() + usize::from(!self.current.items.is_empty())
     }
 
     pub fn clear(&mut self) {
         self.raw.clear();
         self.commands.clear();
         self.receipts.clear();
+        self.current = Receipt::new();
+        self.epoch = self.epoch.wrapping_add(1);
     }
 }

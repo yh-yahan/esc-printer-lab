@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, CharSize, UnderlineMode, CutMode};
+use crate::parser::command::{Alignment, CharSize, CutMode, UnderlineMode};
 
 #[derive(Debug, Clone, Default)]
 pub struct Receipt {
@@ -43,4 +43,3 @@ impl Receipt {
         self.items.push(ReceiptItem::Event(event));
     }
 }
-

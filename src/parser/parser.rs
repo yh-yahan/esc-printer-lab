@@ -33,6 +33,14 @@ impl Parser {
         commands
     }
 
+    pub fn pending_text(&self) -> Option<&str> {
+        if self.text_buffer.is_empty() {
+            None
+        } else {
+            Some(self.text_buffer.as_str())
+        }
+    }
+
     pub fn finish(&mut self) -> Vec<ParsedCommand> {
         let mut commands = Vec::new();
 

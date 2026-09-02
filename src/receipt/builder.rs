@@ -1,11 +1,6 @@
 use crate::parser::command::{Alignment, CharSize, Command, UnderlineMode};
 
-use super::receipt::{
-    Receipt,
-    ReceiptEvent,
-    ReceiptLine,
-    ReceiptSegment,
-};
+use super::receipt::{Receipt, ReceiptEvent, ReceiptLine, ReceiptSegment};
 
 pub struct ReceiptBuilder {
     current_bold: bool,
@@ -32,10 +27,11 @@ impl ReceiptBuilder {
         match command {
             Command::Initialize => {
                 self.current_alignment = Alignment::Left;
-                self.segments.clear();
                 self.current_bold = false;
                 self.current_underline = UnderlineMode::Off;
                 self.current_char_size = CharSize { width: 1, height: 1 };
+                self.segments.clear();
+                self.receipt = Receipt::new();
             }
 
             Command::Bold(bold) => {
@@ -69,15 +65,10 @@ impl ReceiptBuilder {
 
             Command::Cut(cut_mode) => {
                 self.flush_current_line();
-
-                self.receipt.add_event(
-                    ReceiptEvent::Cut(*cut_mode)
-                );
+                self.receipt.add_event(ReceiptEvent::Cut(*cut_mode));
             }
 
-            Command::Unknown(_) => {
-                // unknown commands do not affect the receipt preview
-            }
+            Command::Unknown(_) => {}
         }
     }
 
@@ -87,9 +78,36 @@ impl ReceiptBuilder {
         }
     }
 
-    pub fn build(mut self) -> Receipt {
-        self.flush_current_line();
-        self.receipt
+    pub fn build(&self) -> Receipt {
+        self.preview(None)
+    }
+
+    pub fn preview(&self, pending_text: Option<&str>) -> Receipt {
+        let mut receipt = self.receipt.clone();
+        let mut segments = self.segments.clone();
+
+        if let Some(text) = pending_text.filter(|text| !text.is_empty()) {
+            segments.push(ReceiptSegment {
+                text: text.to_string(),
+                bold: self.current_bold,
+                underline: self.current_underline,
+                char_size: self.current_char_size,
+            });
+        }
+
+        if !segments.is_empty() {
+            receipt.add_line(ReceiptLine {
+                alignment: self.current_alignment,
+                segments,
+            });
+        }
+
+        receipt
+    }
+
+    pub fn start_new(&mut self) {
+        self.segments.clear();
+        self.receipt = Receipt::new();
     }
 
     fn flush_current_line(&mut self) {

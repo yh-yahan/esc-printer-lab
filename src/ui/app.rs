@@ -111,24 +111,15 @@ impl AppViewer<'_> {
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 let session = self.session.lock().unwrap();
+                let mut items = Vec::new();
+
+                for receipt in &session.receipts {
+                    items.extend(receipt.items.iter().cloned());
+                }
+                items.extend(session.current.items.iter().cloned());
 
                 ui.vertical_centered(|ui| {
-                    if session.receipts.is_empty() {
-                        render_receipt(ui, &Receipt { items: vec![] });
-                    } else {
-                        let mut combined_items = Vec::new();
-
-                        for receipt in &session.receipts {
-                            combined_items.extend(receipt.items.iter().cloned());
-                        }
-
-                        render_receipt(
-                            ui,
-                            &Receipt {
-                                items: combined_items,
-                            },
-                        );
-                    }
+                    render_receipt(ui, &Receipt { items });
                 });
             });
     }
