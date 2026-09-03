@@ -101,6 +101,9 @@ impl Parser {
         match self.state {
             ParserState::Normal => self.handle_normal(byte, commands),
             ParserState::Esc => self.handle_esc(byte, commands),
+            ParserState::EscLineSpacing => self.handle_esc_line_spacing(byte, commands),
+            ParserState::EscPrintAndFeedLines => self.handle_esc_print_and_feed_lines(byte, commands),
+            ParserState::EscPrintAndFeedDots => self.handle_esc_print_and_feed_dots(byte, commands),
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
             ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
             ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
@@ -129,6 +132,16 @@ impl Parser {
                 );
             }
 
+            0x0D => {
+                self.flush_text(commands);
+
+                self.push_command(
+                    Command::CarriageReturn,
+                    self.offset + 1,
+                    commands,
+                );
+            }
+
             0x1D => {
                 self.flush_text(commands);
 
@@ -144,6 +157,7 @@ impl Parser {
 
     fn handle_esc(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
         match byte {
+            // ESC @
             0x40 => {
                 self.flush_text(commands);
 
@@ -156,12 +170,40 @@ impl Parser {
                 self.state = ParserState::Normal;
             }
 
+            // ESC E n
             0x45 => {
                 self.state = ParserState::EscEmphasis;
             }
 
+            // ESC a n
             0x61 => {
                 self.state = ParserState::EscAlignment;
+            }
+
+            // ESC 2
+            0x32 => {
+                self.flush_text(commands);
+
+                self.push_command(
+                    Command::SetDefaultLineSpacing,
+                    self.offset + 1,
+                    commands,
+                );
+
+                self.state = ParserState::Normal;
+            }
+
+            // ESC 3 n
+            0x33 => {
+                self.state = ParserState::EscLineSpacing;
+            }
+
+            0x4A => {
+                self.state = ParserState::EscPrintAndFeedDots;
+            }
+
+            0x64 => {
+                self.state = ParserState::EscPrintAndFeedLines;
             }
 
             0x2D => {
@@ -204,6 +246,40 @@ impl Parser {
             );
         }
 
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_line_spacing(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        self.push_command(
+            Command::SetLineSpacing(byte),
+            self.offset + 1,
+            commands,
+        );
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_print_and_feed_lines(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        self.push_command(
+            Command::PrintAndFeedLines(byte),
+            self.offset + 1,
+            commands,
+        );
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_print_and_feed_dots(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+        self.push_command(
+            Command::PrintAndFeedDots(byte),
+            self.offset + 1,
+            commands,
+        );
         self.state = ParserState::Normal;
     }
 

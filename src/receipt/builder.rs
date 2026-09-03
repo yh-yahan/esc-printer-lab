@@ -2,11 +2,14 @@ use crate::parser::command::{Alignment, CharSize, Command, UnderlineMode};
 
 use super::receipt::{Receipt, ReceiptEvent, ReceiptLine, ReceiptSegment};
 
+const DEFAULT_LINE_SPACING: u8 = 30;
+
 pub struct ReceiptBuilder {
     current_bold: bool,
     current_alignment: Alignment,
     current_underline: UnderlineMode,
     current_char_size: CharSize,
+    current_line_spacing: u8,
     segments: Vec<ReceiptSegment>,
     receipt: Receipt,
 }
@@ -18,6 +21,7 @@ impl ReceiptBuilder {
             current_alignment: Alignment::Left,
             current_underline: UnderlineMode::Off,
             current_char_size: CharSize { width: 1, height: 1 },
+            current_line_spacing: DEFAULT_LINE_SPACING,
             segments: Vec::new(),
             receipt: Receipt::new(),
         }
@@ -30,6 +34,7 @@ impl ReceiptBuilder {
                 self.current_bold = false;
                 self.current_underline = UnderlineMode::Off;
                 self.current_char_size = CharSize { width: 1, height: 1 };
+                self.current_line_spacing = DEFAULT_LINE_SPACING;
                 self.segments.clear();
                 self.receipt = Receipt::new();
             }
@@ -49,6 +54,27 @@ impl ReceiptBuilder {
             Command::CharSize(char_size) => {
                 self.current_char_size = *char_size;
             }
+            
+            Command::SetDefaultLineSpacing => {
+                self.current_line_spacing = DEFAULT_LINE_SPACING;
+            }
+
+            Command::SetLineSpacing(spacing) => {
+                self.current_line_spacing = *spacing;
+            }
+
+            Command::PrintAndFeedLines(lines) => {
+                self.flush_current_line();
+                self.receipt.add_event(ReceiptEvent::FeedLines {
+                    lines: *lines,
+                    spacing: self.current_line_spacing,
+                });
+            }
+
+            Command::PrintAndFeedDots(dots) => {
+                self.flush_current_line();
+                self.receipt.add_event(ReceiptEvent::FeedDots { dots: *dots });
+            }
 
             Command::Text(text) => {
                 self.segments.push(ReceiptSegment {
@@ -59,8 +85,19 @@ impl ReceiptBuilder {
                 });
             }
 
+            Command::CarriageReturn => {
+                self.segments.clear();
+            }
+
             Command::LineFeed => {
-                self.flush_current_line();
+                if self.segments.is_empty() {
+                    self.receipt.add_event(ReceiptEvent::FeedLines {
+                        lines: 1,
+                        spacing: self.current_line_spacing,
+                    });
+                } else {
+                    self.flush_current_line();
+                }
             }
 
             Command::Cut(cut_mode) => {
@@ -99,6 +136,7 @@ impl ReceiptBuilder {
             receipt.add_line(ReceiptLine {
                 alignment: self.current_alignment,
                 segments,
+                spacing: self.current_line_spacing,
             });
         }
 
@@ -118,6 +156,7 @@ impl ReceiptBuilder {
         self.receipt.add_line(ReceiptLine {
             alignment: self.current_alignment,
             segments: std::mem::take(&mut self.segments),
+            spacing: self.current_line_spacing,
         });
     }
 }

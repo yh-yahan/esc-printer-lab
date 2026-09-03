@@ -7,6 +7,11 @@ impl EscPosFormatter {
         match command {
             Command::Initialize => "ESC @".into(),
             Command::LineFeed => "LF".into(),
+            Command::CarriageReturn => "CR".into(),
+            Command::SetDefaultLineSpacing => "ESC 2".into(),
+            Command::SetLineSpacing(spacing) => {
+                format!("ESC 3 {spacing}")
+            }
             Command::Text(text) => format!("\"{text}\""),
             Command::Bold(on) => format!("ESC E {}", *on as u8),
             Command::Align(align) => {
@@ -37,9 +42,15 @@ impl EscPosFormatter {
                     | (size.height.saturating_sub(1) & 0x07);
                 format!("GS ! {n:02X}")
             }
-
+            Command::PrintAndFeedLines(lines) => {
+                format!("ESC d {lines}")
+            }
+            Command::PrintAndFeedDots(dots) => {
+                format!("ESC J {dots}")
+            }
             Command::Unknown(bytes) => {
-                let hex = bytes.iter()
+                let hex = bytes
+                    .iter()
                     .map(|byte| format!("{byte:02X}"))
                     .collect::<Vec<_>>()
                     .join(" ");

@@ -25,6 +25,9 @@ impl InspectorViewer<'_> {
         match command {
             Command::Initialize => egui::Color32::from_rgb(100, 180, 255),
             Command::LineFeed => egui::Color32::from_rgb(180, 180, 180),
+            Command::CarriageReturn => egui::Color32::from_rgb(180, 180, 180),
+            Command::PrintAndFeedLines(_) | Command::PrintAndFeedDots(_) => egui::Color32::from_rgb(180, 180, 180),
+            Command::SetDefaultLineSpacing | Command::SetLineSpacing(_) => egui::Color32::from_rgb(150, 180, 220),
             Command::Text(_) => egui::Color32::from_rgb(220, 220, 220),
             Command::Bold(_) => egui::Color32::from_rgb(255, 190, 80),
             Command::Align(_) => egui::Color32::from_rgb(180, 130, 255),

@@ -19,9 +19,9 @@ impl AppTab {
         match self {
             Self::ReceiptPreview => "Receipt Preview",
             Self::Inspector(InspectorTab::EscPos) => "ESC/POS",
-            Self::Inspector(InspectorTab::Receipt) => "Receipt",
             Self::Inspector(InspectorTab::Hex) => "Hex",
             Self::Inspector(InspectorTab::Parser) => "Parser",
+            Self::Inspector(InspectorTab::Receipt) => "Receipt",
         }
     }
 }

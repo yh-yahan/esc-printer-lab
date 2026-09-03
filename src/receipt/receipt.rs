@@ -15,6 +15,7 @@ pub enum ReceiptItem {
 pub struct ReceiptLine {
     pub alignment: Alignment,
     pub segments: Vec<ReceiptSegment>,
+    pub spacing: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +29,8 @@ pub struct ReceiptSegment {
 #[derive(Debug, Clone)]
 pub enum ReceiptEvent {
     Cut(CutMode),
+    FeedDots { dots: u8 },
+    FeedLines { lines: u8, spacing: u8 },
 }
 
 impl Receipt {
