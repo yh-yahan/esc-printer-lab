@@ -1,8 +1,9 @@
 mod input;
 mod parser;
+mod printer;
 mod receipt;
-mod ui;
 mod shared;
+mod ui;
 
 use std::sync::{Arc, Mutex};
 use std::thread;

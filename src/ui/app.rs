@@ -3,10 +3,15 @@ use egui_dock::{DockArea, DockState, Style, TabViewer};
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
+use crate::printer::PrinterProfile;
 use crate::receipt::receipt::Receipt;
 use crate::shared::print_session::PrintSession;
 use crate::ui::inspector::{InspectorTab, InspectorViewer};
-use crate::ui::receipt_view::render_receipt;
+use crate::ui::receipt_view::{render_receipt, PreviewOptions};
+
+const MIN_ZOOM: f32 = 0.25;
+const MAX_ZOOM: f32 = 2.0;
+const DEFAULT_ZOOM: f32 = 0.75;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AppTab {
@@ -19,9 +24,27 @@ impl AppTab {
         match self {
             Self::ReceiptPreview => "Receipt Preview",
             Self::Inspector(InspectorTab::EscPos) => "ESC/POS",
+            Self::Inspector(InspectorTab::Receipt) => "Receipt",
             Self::Inspector(InspectorTab::Hex) => "Hex",
             Self::Inspector(InspectorTab::Parser) => "Parser",
-            Self::Inspector(InspectorTab::Receipt) => "Receipt",
+        }
+    }
+}
+
+pub struct PreviewState {
+    pub profile: PrinterProfile,
+    pub zoom: f32,
+    pub fit_to_width: bool,
+    pub show_ruler: bool,
+}
+
+impl PreviewState {
+    fn new() -> Self {
+        Self {
+            profile: PrinterProfile::EPSON_80MM_180,
+            zoom: DEFAULT_ZOOM,
+            fit_to_width: false,
+            show_ruler: false,
         }
     }
 }
@@ -30,6 +53,7 @@ pub struct App {
     session: Arc<Mutex<PrintSession>>,
     dock_state: DockState<AppTab>,
     hovered_span: Option<Range<usize>>,
+    preview: PreviewState,
 }
 
 impl App {
@@ -56,12 +80,14 @@ impl App {
             session,
             dock_state,
             hovered_span: None,
+            preview: PreviewState::new(),
         }
     }
 }
 
 struct AppViewer<'a> {
     session: &'a Arc<Mutex<PrintSession>>,
+    preview: &'a mut PreviewState,
     hovered_span: Option<Range<usize>>,
     next_hovered_span: &'a mut Option<Range<usize>>,
 }
@@ -105,7 +131,65 @@ impl TabViewer for AppViewer<'_> {
 }
 
 impl AppViewer<'_> {
-    fn show_receipt_preview(&self, ui: &mut egui::Ui) {
+    fn show_preview_toolbar(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Printer");
+
+            let mut selected = self.preview.profile.id;
+            egui::ComboBox::from_id_salt("printer_profile")
+                .selected_text(self.preview.profile.name)
+                .show_ui(ui, |ui| {
+                    for profile in PrinterProfile::ALL {
+                        ui.selectable_value(&mut selected, profile.id, profile.name);
+                    }
+                });
+            if selected != self.preview.profile.id {
+                self.preview.profile = PrinterProfile::by_id(selected);
+            }
+
+            ui.separator();
+
+            if ui
+                .selectable_label(self.preview.fit_to_width, "Fit width")
+                .clicked()
+            {
+                self.preview.fit_to_width = !self.preview.fit_to_width;
+            }
+
+            ui.add_enabled(
+                !self.preview.fit_to_width,
+                egui::Slider::new(&mut self.preview.zoom, MIN_ZOOM..=MAX_ZOOM)
+                    .text("px/dot")
+                    .step_by(0.05),
+            );
+
+            ui.checkbox(&mut self.preview.show_ruler, "Column ruler");
+        });
+
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(self.preview.profile.summary())
+                .small()
+                .color(egui::Color32::from_gray(180)),
+        );
+    }
+
+    fn show_receipt_preview(&mut self, ui: &mut egui::Ui) {
+        self.show_preview_toolbar(ui);
+        ui.separator();
+
+        if self.preview.fit_to_width {
+            let available = (ui.available_width() - 24.0).max(80.0);
+            let paper_dots = self.preview.profile.paper_dots().max(1.0);
+            self.preview.zoom = (available / paper_dots).clamp(MIN_ZOOM, MAX_ZOOM);
+        }
+
+        let options = PreviewOptions {
+            profile: self.preview.profile,
+            px_per_dot: self.preview.zoom,
+            show_ruler: self.preview.show_ruler,
+        };
+
         egui::ScrollArea::vertical()
             .id_salt("receipt_preview_scroll")
             .auto_shrink([false; 2])
@@ -118,9 +202,7 @@ impl AppViewer<'_> {
                 }
                 items.extend(session.current.items.iter().cloned());
 
-                ui.vertical_centered(|ui| {
-                    render_receipt(ui, &Receipt { items });
-                });
+                render_receipt(ui, &Receipt { items }, options);
             });
     }
 }
@@ -155,6 +237,7 @@ impl eframe::App for App {
         {
             let mut viewer = AppViewer {
                 session: &self.session,
+                preview: &mut self.preview,
                 hovered_span: self.hovered_span.clone(),
                 next_hovered_span: &mut next_hovered_span,
             };
