@@ -4,6 +4,10 @@ use super::command::{
 };
 use super::state::ParserState;
 
+use crate::printer::codepage::{
+    decode_byte, is_supported_character_set, is_supported_code_page, DEFAULT_CHARACTER_SET,
+    DEFAULT_CODE_PAGE,
+};
 use crate::shared::print_session::ParsedCommand;
 
 const MAX_RASTER_BYTES: usize = 2 * 1024 * 1024;
@@ -15,6 +19,8 @@ pub struct Parser {
     offset: usize,
     command_start: Option<usize>,
     text_start: Option<usize>,
+    code_page: u8,
+    character_set: u8,
 }
 
 impl Parser {
@@ -25,6 +31,8 @@ impl Parser {
             offset: 0,
             command_start: None,
             text_start: None,
+            code_page: DEFAULT_CODE_PAGE,
+            character_set: DEFAULT_CHARACTER_SET,
         }
     }
 
@@ -129,15 +137,38 @@ impl Parser {
     }
 
     fn push_text_byte(&mut self, byte: u8) {
-        if byte == 0x00 {
+        let Some(ch) = decode_byte(self.code_page, self.character_set, byte) else {
             return;
-        }
+        };
 
         if self.text_start.is_none() {
             self.text_start = Some(self.offset);
         }
 
-        self.text_buffer.push(byte as char);
+        self.text_buffer.push(ch);
+    }
+
+    fn apply_code_page(&mut self, n: u8) -> bool {
+        if is_supported_code_page(n) {
+            self.code_page = n;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn apply_character_set(&mut self, n: u8) -> bool {
+        if is_supported_character_set(n) {
+            self.character_set = n;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn reset_encoding(&mut self) {
+        self.code_page = DEFAULT_CODE_PAGE;
+        self.character_set = DEFAULT_CHARACTER_SET;
     }
 
     fn push_command(&mut self, command: Command, end: usize, commands: &mut Vec<ParsedCommand>) {
@@ -172,6 +203,8 @@ impl Parser {
             ParserState::EscAlignment => self.handle_esc_alignment(byte, commands),
             ParserState::EscEmphasis => self.handle_esc_emphasis(byte, commands),
             ParserState::EscUnderline => self.handle_esc_underline(byte, commands),
+            ParserState::EscCodePage => self.handle_esc_code_page(byte, commands),
+            ParserState::EscCharacterSet => self.handle_esc_character_set(byte, commands),
             ParserState::Gs => self.handle_gs(byte, commands),
             ParserState::GsCut => self.handle_gs_cut(byte, commands),
             ParserState::GsCharSize => self.handle_gs_char_size(byte, commands),
@@ -238,6 +271,7 @@ impl Parser {
                     commands,
                 );
 
+                self.reset_encoding();
                 self.state = ParserState::Normal;
             }
 
@@ -279,6 +313,16 @@ impl Parser {
 
             0x2D => {
                 self.state = ParserState::EscUnderline;
+            }
+
+            // ESC t n
+            0x74 => {
+                self.state = ParserState::EscCodePage;
+            }
+
+            // ESC R n
+            0x52 => {
+                self.state = ParserState::EscCharacterSet;
             }
 
             _ => {
@@ -390,6 +434,32 @@ impl Parser {
                 commands,
             );
         }
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_code_page(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        let applied = self.apply_code_page(byte);
+        self.push_command(
+            Command::SelectCodePage { n: byte, applied },
+            self.offset + 1,
+            commands,
+        );
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_esc_character_set(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        let applied = self.apply_character_set(byte);
+        self.push_command(
+            Command::SelectCharacterSet { n: byte, applied },
+            self.offset + 1,
+            commands,
+        );
 
         self.state = ParserState::Normal;
     }

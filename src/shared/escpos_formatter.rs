@@ -13,6 +13,20 @@ impl EscPosFormatter {
                 format!("ESC 3 {spacing}")
             }
             Command::Text(text) => format!("\"{text}\""),
+            Command::SelectCodePage { n, applied } => {
+                if *applied {
+                    format!("ESC t {n}")
+                } else {
+                    format!("ESC t {n} (ignored)")
+                }
+            }
+            Command::SelectCharacterSet { n, applied } => {
+                if *applied {
+                    format!("ESC R {n}")
+                } else {
+                    format!("ESC R {n} (ignored)")
+                }
+            }
             Command::Bold(on) => format!("ESC E {}", *on as u8),
             Command::Align(align) => {
                 let n = match align {

@@ -26,6 +26,8 @@ Currently supported commands:
 | QR model / size / ECC / store / print | `GS ( k` | QR Code setup and print |
 | Line feed | `LF` (`0x0A`) | Print and advance one line |
 | Carriage return | `CR` (`0x0D`) | Return to start of line |
+| Code page | `ESC t n` | Select character code table |
+| International set | `ESC R n` | Replace a few ASCII punctuation chars |
 | Text | printable bytes | Print text |
 | Unknown | other sequences | Preserved as raw bytes |
 

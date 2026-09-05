@@ -1,4 +1,5 @@
 use super::command::{Alignment, Command, CutMode, QrCommand, RasterScale, UnderlineMode};
+use crate::printer::codepage::{character_set_name, CodePage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandCategory {
@@ -146,8 +147,26 @@ impl Command {
                 mnemonic: "text",
                 hex: "printable bytes",
                 summary: "Printable characters sent to the printer. Not a control command.",
-                notes: "",
+                notes: "Decoded with the active ESC t code page and ESC R international character set. Empty slots (page 255, undefined WPC1252 bytes) print as a space.",
                 docs_url: None,
+                category: CommandCategory::Text,
+            },
+            Command::SelectCodePage { .. } => CommandSpec {
+                name: "Select character code table",
+                mnemonic: "ESC t n",
+                hex: "1B 74 n",
+                summary: "Selects the code page used for bytes 0x80–0xFF.",
+                notes: "If this model does not implement page n, the command is accepted and ignored. The previous page stays active.",
+                docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/esc_lt.html"),
+                category: CommandCategory::Text,
+            },
+            Command::SelectCharacterSet { .. } => CommandSpec {
+                name: "Select an international character set",
+                mnemonic: "ESC R n",
+                hex: "1B 52 n",
+                summary: "Replaces a few ASCII punctuation codes with country-specific characters.",
+                notes: "Affects # $ @ [ \\ ] ^ ` { | } ~. Unsupported n is ignored.",
+                docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/esc_cr.html"),
                 category: CommandCategory::Text,
             },
             Command::Unknown(_) => CommandSpec {
@@ -215,7 +234,16 @@ impl Command {
                 QrCommand::Store { data } => vec![format!("{} data byte(s)", data.len())],
                 QrCommand::Print => vec!["prints the stored QR symbol".into()],
             },
-            Command::Text(text) => vec![format!("{} byte(s)", text.len())],
+            Command::Text(text) => vec![format!("{} character(s)", text.chars().count())],
+            Command::SelectCodePage { n, applied } => {
+                let status = if *applied { "applied" } else { "ignored" };
+                vec![format!("n = {n}  {}  {status}", CodePage::label(*n))]
+            }
+            Command::SelectCharacterSet { n, applied } => {
+                let name = character_set_name(*n).unwrap_or("not implemented");
+                let status = if *applied { "applied" } else { "ignored" };
+                vec![format!("n = {n}  {name}  {status}")]
+            }
             Command::Initialize | Command::LineFeed | Command::CarriageReturn => vec![],
             Command::SetDefaultLineSpacing => vec!["uses printer default line spacing".into()],
             Command::SetLineSpacing(spacing) => vec![format!("n = {spacing}  spacing in dots")],

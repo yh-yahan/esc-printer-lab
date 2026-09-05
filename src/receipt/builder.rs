@@ -134,6 +134,8 @@ impl ReceiptBuilder {
 
             Command::Qr(qr) => self.process_qr(qr),
 
+            Command::SelectCodePage { .. } | Command::SelectCharacterSet { .. } => {}
+
             Command::Unknown(_) => {}
         }
     }

@@ -7,6 +7,8 @@ pub enum ParserState {
     EscAlignment,
     EscEmphasis,
     EscUnderline,
+    EscCodePage,
+    EscCharacterSet,
     EscPrintAndFeedLines,
     EscPrintAndFeedDots,
     EscLineSpacing,

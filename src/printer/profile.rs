@@ -102,15 +102,25 @@ impl PrinterProfile {
         self.font_a.columns_per_line(self.printable_dots)
     }
 
+    pub fn supported_code_pages(self) -> &'static [u8] {
+        const COMMON: &[u8] = &[0, 1, 2, 3, 4, 5, 16, 17, 18, 19, 255];
+        COMMON
+    }
+
+    pub fn supports_code_page(self, n: u8) -> bool {
+        self.supported_code_pages().contains(&n)
+    }
+
     pub fn summary(self) -> String {
         format!(
-            "printable {} dots ({:.1} mm) · Font A {}x{} · {} cpl · spacing {} dots",
+            "printable {} dots ({:.1} mm) · Font A {}x{} · {} cpl · spacing {} dots · {} code pages",
             self.printable_dots,
             self.printable_mm(),
             self.font_a.cell_w,
             self.font_a.cell_h,
             self.font_a_columns(),
-            self.default_line_spacing
+            self.default_line_spacing,
+            self.supported_code_pages().len()
         )
     }
 }

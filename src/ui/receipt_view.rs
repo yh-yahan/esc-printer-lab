@@ -1,7 +1,7 @@
 use eframe::egui::{self, Align2, FontId, Pos2, Rect, Stroke, Vec2};
 
 use crate::parser::command::{Alignment, CutMode, RasterImage, UnderlineMode};
-use crate::printer::{FontMetrics, PrinterProfile};
+use crate::printer::{FontMetrics, PrinterProfile, MISSING_GLYPH};
 use crate::receipt::receipt::{Receipt, ReceiptEvent, ReceiptItem, ReceiptLine, ReceiptSegment};
 
 const PAPER_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 250, 240);
@@ -249,19 +249,32 @@ fn paint_row(
 
         let font_size = (cell_h_px * 0.92).max(1.0);
         let color = if cell.bold { INK } else { INK_LIGHT };
-        let font_id = if cell.bold {
-            FontId::new(font_size, egui::FontFamily::Monospace)
-        } else {
-            FontId::monospace(font_size)
-        };
 
-        painter.text(
-            Pos2::new(x, top),
-            Align2::LEFT_TOP,
-            cell.ch.to_string(),
-            font_id,
-            color,
-        );
+        if cell.ch == MISSING_GLYPH {
+            let pad = options.dots_to_px(2.0);
+            painter.rect_filled(
+                Rect::from_min_size(
+                    Pos2::new(x + pad, top + pad),
+                    Vec2::new((cell_w_px - pad * 2.0).max(1.0), (cell_h_px - pad * 2.0).max(1.0)),
+                ),
+                0.0,
+                color,
+            );
+        } else {
+            let font_id = if cell.bold {
+                FontId::new(font_size, egui::FontFamily::Monospace)
+            } else {
+                FontId::monospace(font_size)
+            };
+
+            painter.text(
+                Pos2::new(x, top),
+                Align2::LEFT_TOP,
+                cell.ch.to_string(),
+                font_id,
+                color,
+            );
+        }
 
         match cell.underline {
             UnderlineMode::Off => {}

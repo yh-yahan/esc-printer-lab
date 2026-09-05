@@ -2,6 +2,8 @@
 pub enum Command {
     Initialize,
     Text(String),
+    SelectCodePage { n: u8, applied: bool },
+    SelectCharacterSet { n: u8, applied: bool },
     LineFeed,
     CarriageReturn,
     PrintAndFeedLines(u8),
