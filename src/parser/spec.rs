@@ -1,4 +1,4 @@
-use super::command::{Alignment, Command, CutMode, RasterScale, UnderlineMode};
+use super::command::{Alignment, Command, CutMode, QrCommand, RasterScale, UnderlineMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandCategory {
@@ -77,6 +77,7 @@ impl Command {
                 docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lv_0.html"),
                 category: CommandCategory::Layout,
             },
+            Command::Qr(qr) => qr_spec(qr),
             Command::CharSize(_) => CommandSpec {
                 name: "Select character size",
                 mnemonic: "GS ! n",
@@ -200,6 +201,20 @@ impl Command {
                     format!("k = {}  data byte(s)", image.data.len()),
                 ]
             }
+            Command::Qr(qr) => match qr {
+                QrCommand::SetModel { model } => vec![format!(
+                    "n1 = {model}  model {}",
+                    if *model == 49 { 1 } else { 2 }
+                )],
+                QrCommand::SetModuleSize { size } => {
+                    vec![format!("n = {size}  module size in dots")]
+                }
+                QrCommand::SetErrorCorrection { level } => {
+                    vec![format!("n = {}  level {}", level.n(), level.name())]
+                }
+                QrCommand::Store { data } => vec![format!("{} data byte(s)", data.len())],
+                QrCommand::Print => vec!["prints the stored QR symbol".into()],
+            },
             Command::Text(text) => vec![format!("{} byte(s)", text.len())],
             Command::Initialize | Command::LineFeed | Command::CarriageReturn => vec![],
             Command::SetDefaultLineSpacing => vec!["uses printer default line spacing".into()],
@@ -208,5 +223,55 @@ impl Command {
             Command::PrintAndFeedDots(dots) => vec![format!("n = {dots}  feed {dots} dot(s)")],
             Command::Unknown(bytes) => vec![format!("{} byte(s)", bytes.len())],
         }
+    }
+}
+
+fn qr_spec(qr: &QrCommand) -> CommandSpec {
+    match qr {
+        QrCommand::SetModel { .. } => CommandSpec {
+            name: "QR Code: Select the model",
+            mnemonic: "GS ( k fn 65",
+            hex: "1D 28 6B pL pH 31 41 n1 n2",
+            summary: "Selects QR Code Model 1 or Model 2.",
+            notes: "n1 = 49 selects Model 1, n1 = 50 selects Model 2. The emulator encodes Model 2.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn165.html"),
+            category: CommandCategory::Layout,
+        },
+        QrCommand::SetModuleSize { .. } => CommandSpec {
+            name: "QR Code: Set the size of module",
+            mnemonic: "GS ( k fn 67",
+            hex: "1D 28 6B 03 00 31 43 n",
+            summary: "Sets the QR module size in dots.",
+            notes: "Valid range is 1 to 16. Values outside that range fall back to 3.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn167.html"),
+            category: CommandCategory::Layout,
+        },
+        QrCommand::SetErrorCorrection { .. } => CommandSpec {
+            name: "QR Code: Select the error correction level",
+            mnemonic: "GS ( k fn 69",
+            hex: "1D 28 6B 03 00 31 45 n",
+            summary: "Sets QR error correction to L, M, Q, or H.",
+            notes: "n = 48 L, 49 M, 50 Q, 51 H. Used when the stored symbol is printed.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn169.html"),
+            category: CommandCategory::Layout,
+        },
+        QrCommand::Store { .. } => CommandSpec {
+            name: "QR Code: Store the data in the symbol storage area",
+            mnemonic: "GS ( k fn 80",
+            hex: "1D 28 6B pL pH 31 50 30 d1...dk",
+            summary: "Stores QR payload bytes. Nothing is printed until Function 81.",
+            notes: "pL + pH x 256 is 3 plus the number of data bytes. Replaces any previously stored symbol data.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn180.html"),
+            category: CommandCategory::Layout,
+        },
+        QrCommand::Print => CommandSpec {
+            name: "QR Code: Print the symbol data in the symbol storage area",
+            mnemonic: "GS ( k fn 81",
+            hex: "1D 28 6B 03 00 31 51 30",
+            summary: "Encodes and prints the stored QR Code.",
+            notes: "Uses the current model, module size, and error-correction settings. Alignment follows ESC a.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn181.html"),
+            category: CommandCategory::Layout,
+        },
     }
 }

@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 eframe = "0.34.2"
 egui_dock = "0.19"
+qrcode = { version = "0.14", default-features = false }

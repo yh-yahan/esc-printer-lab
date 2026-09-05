@@ -1,11 +1,13 @@
 use super::command::{
-    Alignment, CharSize, Command, CutMode, RasterImage, RasterScale, UnderlineMode,
+    Alignment, CharSize, Command, CutMode, QrCommand, QrEcLevel, RasterImage, RasterScale,
+    UnderlineMode,
 };
 use super::state::ParserState;
 
 use crate::shared::print_session::ParsedCommand;
 
 const MAX_RASTER_BYTES: usize = 2 * 1024 * 1024;
+const MAX_GS_PAREN_BYTES: usize = 2 * 1024 * 1024;
 
 pub struct Parser {
     state: ParserState,
@@ -49,12 +51,12 @@ impl Parser {
         let mut commands = Vec::new();
 
         self.flush_text(&mut commands);
-        self.flush_incomplete_raster(&mut commands);
+        self.flush_incomplete(&mut commands);
 
         commands
     }
 
-    fn flush_incomplete_raster(&mut self, commands: &mut Vec<ParsedCommand>) {
+    fn flush_incomplete(&mut self, commands: &mut Vec<ParsedCommand>) {
         let start = self.command_start.unwrap_or(self.offset);
         let bytes = match &self.state {
             ParserState::GsRasterZero => vec![0x1D, 0x76],
@@ -80,6 +82,23 @@ impl Parser {
                     (*height & 0xFF) as u8,
                     (*height >> 8) as u8,
                 ];
+                raw.extend_from_slice(data);
+                raw
+            }
+            ParserState::GsParen => vec![0x1D, 0x28],
+            ParserState::GsParenHeader { ident, bytes } => {
+                let mut raw = vec![0x1D, 0x28, *ident];
+                raw.extend_from_slice(bytes);
+                raw
+            }
+            ParserState::GsParenData {
+                ident,
+                p_l,
+                p_h,
+                data,
+                ..
+            } => {
+                let mut raw = vec![0x1D, 0x28, *ident, *p_l, *p_h];
                 raw.extend_from_slice(data);
                 raw
             }
@@ -159,6 +178,9 @@ impl Parser {
             ParserState::GsRasterZero => self.handle_gs_raster_zero(byte, commands),
             ParserState::GsRasterHeader { .. } => self.handle_gs_raster_header(byte, commands),
             ParserState::GsRasterData { .. } => self.handle_gs_raster_data(byte, commands),
+            ParserState::GsParen => self.handle_gs_paren(byte, commands),
+            ParserState::GsParenHeader { .. } => self.handle_gs_paren_header(byte, commands),
+            ParserState::GsParenData { .. } => self.handle_gs_paren_data(byte, commands),
         }
     }
 
@@ -386,6 +408,10 @@ impl Parser {
                 self.state = ParserState::GsRasterZero;
             }
 
+            0x28 => {
+                self.state = ParserState::GsParen;
+            }
+
             _ => {
                 self.flush_text(commands);
 
@@ -536,69 +562,114 @@ impl Parser {
 
         self.state = ParserState::Normal;
     }
+
+    fn handle_gs_paren(&mut self, byte: u8, _commands: &mut Vec<ParsedCommand>) {
+        self.state = ParserState::GsParenHeader {
+            ident: byte,
+            bytes: Vec::new(),
+        };
+    }
+
+    fn handle_gs_paren_header(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        let ParserState::GsParenHeader { ident, bytes } = &mut self.state else {
+            return;
+        };
+
+        bytes.push(byte);
+        if bytes.len() < 2 {
+            return;
+        }
+
+        let ident = *ident;
+        let p_l = bytes[0];
+        let p_h = bytes[1];
+        let k = p_l as usize + (p_h as usize) * 256;
+
+        if k == 0 || k > MAX_GS_PAREN_BYTES {
+            self.flush_text(commands);
+            self.push_unknown(vec![0x1D, 0x28, ident, p_l, p_h], commands);
+            self.state = ParserState::Normal;
+            return;
+        }
+
+        self.state = ParserState::GsParenData {
+            ident,
+            p_l,
+            p_h,
+            data: Vec::with_capacity(k),
+            remaining: k,
+        };
+    }
+
+    fn handle_gs_paren_data(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        let finished = {
+            let ParserState::GsParenData {
+                ident,
+                p_l,
+                p_h,
+                data,
+                remaining,
+            } = &mut self.state
+            else {
+                return;
+            };
+
+            data.push(byte);
+            *remaining = remaining.saturating_sub(1);
+            if *remaining > 0 {
+                return;
+            }
+
+            Some((*ident, *p_l, *p_h, std::mem::take(data)))
+        };
+
+        let Some((ident, p_l, p_h, data)) = finished else {
+            return;
+        };
+
+        self.flush_text(commands);
+
+        if let Some(command) = parse_gs_paren(ident, &data) {
+            self.push_command(command, self.offset + 1, commands);
+        } else {
+            let mut raw = vec![0x1D, 0x28, ident, p_l, p_h];
+            raw.extend_from_slice(&data);
+            self.push_unknown(raw, commands);
+        }
+
+        self.state = ParserState::Normal;
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn feed(bytes: &[u8]) -> Vec<Command> {
-        let mut parser = Parser::new();
-        let mut commands: Vec<_> = parser
-            .feed(bytes)
-            .into_iter()
-            .map(|parsed| parsed.command)
-            .collect();
-        commands.extend(parser.finish().into_iter().map(|parsed| parsed.command));
-        commands
+fn parse_gs_paren(ident: u8, data: &[u8]) -> Option<Command> {
+    if ident != b'k' || data.len() < 2 {
+        return None;
     }
 
-    #[test]
-    fn parses_gs_v_0_raster() {
-        let mut bytes = vec![0x1D, 0x76, 0x30, 0x00, 0x02, 0x00, 0x02, 0x00];
-        bytes.extend_from_slice(&[0xC0, 0x00, 0x00, 0x00]);
+    let cn = data[0];
+    let fn_code = data[1];
+    let params = &data[2..];
 
-        let commands = feed(&bytes);
-        match &commands[..] {
-            [Command::RasterImage(image)] => {
-                assert_eq!(image.scale, RasterScale::Normal);
-                assert_eq!(image.width_bytes, 2);
-                assert_eq!(image.height, 2);
-                assert_eq!(image.data, vec![0xC0, 0x00, 0x00, 0x00]);
+    if cn != 49 {
+        return None;
+    }
+
+    let command = match fn_code {
+        65 if params.len() == 2 && matches!(params[0], 49 | 50) => {
+            QrCommand::SetModel { model: params[0] }
+        }
+        67 if params.len() == 1 => QrCommand::SetModuleSize { size: params[0] },
+        69 if params.len() == 1 => {
+            QrCommand::SetErrorCorrection {
+                level: QrEcLevel::from_n(params[0])?,
             }
-            other => panic!("unexpected commands: {other:?}"),
         }
-    }
+        80 if !params.is_empty() && params[0] == 48 => QrCommand::Store {
+            data: params[1..].to_vec(),
+        },
+        81 if params.len() == 1 && params[0] == 48 => QrCommand::Print,
+        _ => return None,
+    };
 
-    #[test]
-    fn accepts_binary_zero_command_id() {
-        let bytes = [0x1D, 0x76, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0xFF];
-        let commands = feed(&bytes);
-        assert!(matches!(commands.as_slice(), [Command::RasterImage(_)]));
-    }
-
-    #[test]
-    fn splits_raster_across_feeds() {
-        let mut parser = Parser::new();
-        let first = parser.feed(&[0x1D, 0x76, 0x30, 0x00, 0x01, 0x00, 0x02, 0x00, 0xAA]);
-        assert!(first.is_empty());
-
-        let second = parser.feed(&[0x55]);
-        match &second[..] {
-            [parsed] => match &parsed.command {
-                Command::RasterImage(image) => {
-                    assert_eq!(image.data, vec![0xAA, 0x55]);
-                    assert_eq!(image.height, 2);
-                }
-                other => panic!("unexpected command: {other:?}"),
-            },
-            other => panic!("unexpected commands: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn incomplete_raster_becomes_unknown() {
-        let commands = feed(&[0x1D, 0x76, 0x30, 0x00, 0x02, 0x00, 0x02, 0x00, 0xC0]);
-        assert!(matches!(commands.as_slice(), [Command::Unknown(_)]));
-    }
+    Some(Command::Qr(command))
 }

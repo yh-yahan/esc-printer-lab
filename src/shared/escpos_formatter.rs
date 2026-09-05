@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, Command, CutMode, UnderlineMode};
+use crate::parser::command::{Alignment, Command, CutMode, QrCommand, UnderlineMode};
 
 pub struct EscPosFormatter;
 
@@ -46,6 +46,21 @@ impl EscPosFormatter {
                     image.data.len()
                 )
             }
+            Command::Qr(qr) => match qr {
+                QrCommand::SetModel { model } => {
+                    format!("GS ( k fn65 model {}", if *model == 49 { 1 } else { 2 })
+                }
+                QrCommand::SetModuleSize { size } => {
+                    format!("GS ( k fn67 size {size}")
+                }
+                QrCommand::SetErrorCorrection { level } => {
+                    format!("GS ( k fn69 EC {}", level.name())
+                }
+                QrCommand::Store { data } => {
+                    format!("GS ( k fn80 store {} byte(s)", data.len())
+                }
+                QrCommand::Print => "GS ( k fn81 print".into(),
+            },
             Command::CharSize(size) => {
                 let n = ((size.width.saturating_sub(1) & 0x07) << 4)
                     | (size.height.saturating_sub(1) & 0x07);

@@ -14,6 +14,7 @@ pub enum Command {
     Cut(CutMode),
     CharSize(CharSize),
     RasterImage(RasterImage),
+    Qr(QrCommand),
     Unknown(Vec<u8>),
 }
 
@@ -106,4 +107,51 @@ impl RasterImage {
     pub fn printed_height_dots(&self) -> u32 {
         self.height as u32 * self.scale.height_mult() as u32
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QrEcLevel {
+    L,
+    M,
+    Q,
+    H,
+}
+
+impl QrEcLevel {
+    pub fn from_n(n: u8) -> Option<Self> {
+        match n {
+            48 => Some(Self::L),
+            49 => Some(Self::M),
+            50 => Some(Self::Q),
+            51 => Some(Self::H),
+            _ => None,
+        }
+    }
+
+    pub fn n(self) -> u8 {
+        match self {
+            Self::L => 48,
+            Self::M => 49,
+            Self::Q => 50,
+            Self::H => 51,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::L => "L",
+            Self::M => "M",
+            Self::Q => "Q",
+            Self::H => "H",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QrCommand {
+    SetModel { model: u8 },
+    SetModuleSize { size: u8 },
+    SetErrorCorrection { level: QrEcLevel },
+    Store { data: Vec<u8> },
+    Print,
 }
