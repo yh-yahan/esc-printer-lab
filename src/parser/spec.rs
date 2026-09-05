@@ -1,4 +1,4 @@
-use super::command::{Alignment, Command, CutMode, UnderlineMode};
+use super::command::{Alignment, Command, CutMode, RasterScale, UnderlineMode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandCategory {
@@ -67,6 +67,15 @@ impl Command {
                 notes: "Accepts both binary values (0, 1) and ASCII digits ('0', '1').",
                 docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_cv.html"),
                 category: CommandCategory::Cut,
+            },
+            Command::RasterImage(_) => CommandSpec {
+                name: "Print raster bit image",
+                mnemonic: "GS v 0",
+                hex: "1D 76 30 m xL xH yL yH d1...dk",
+                summary: "Prints a raster bit image. x is bytes per row; y is height in dots; payload is x × y bytes.",
+                notes: "Accepts 0x00 or 0x30 as the command id after v. Bit 7 of each data byte is the leftmost pixel. m selects normal, double-width, double-height, or quadruple size.",
+                docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lv_0.html"),
+                category: CommandCategory::Layout,
             },
             Command::CharSize(_) => CommandSpec {
                 name: "Select character size",
@@ -177,6 +186,20 @@ impl Command {
                 format!("width  = {}x", size.width),
                 format!("height = {}x", size.height),
             ],
+            Command::RasterImage(image) => {
+                let mode = match image.scale {
+                    RasterScale::Normal => "normal",
+                    RasterScale::DoubleWidth => "double-width",
+                    RasterScale::DoubleHeight => "double-height",
+                    RasterScale::Quadruple => "quadruple",
+                };
+                vec![
+                    format!("m = {}  {mode}", image.scale.m()),
+                    format!("x = {}  bytes/row ({} dots)", image.width_bytes, image.width_dots()),
+                    format!("y = {}  dots", image.height),
+                    format!("k = {}  data byte(s)", image.data.len()),
+                ]
+            }
             Command::Text(text) => vec![format!("{} byte(s)", text.len())],
             Command::Initialize | Command::LineFeed | Command::CarriageReturn => vec![],
             Command::SetDefaultLineSpacing => vec!["uses printer default line spacing".into()],

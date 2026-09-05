@@ -105,6 +105,14 @@ impl ReceiptBuilder {
                 self.receipt.add_event(ReceiptEvent::Cut(*cut_mode));
             }
 
+            Command::RasterImage(image) => {
+                self.flush_current_line();
+                self.receipt.add_event(ReceiptEvent::RasterImage {
+                    alignment: self.current_alignment,
+                    image: image.clone(),
+                });
+            }
+
             Command::Unknown(_) => {}
         }
     }

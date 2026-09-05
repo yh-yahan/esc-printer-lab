@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, CharSize, CutMode, UnderlineMode};
+use crate::parser::command::{Alignment, CharSize, CutMode, RasterImage, UnderlineMode};
 
 #[derive(Debug, Clone, Default)]
 pub struct Receipt {
@@ -31,6 +31,10 @@ pub enum ReceiptEvent {
     Cut(CutMode),
     FeedDots { dots: u8 },
     FeedLines { lines: u8, spacing: u8 },
+    RasterImage {
+        alignment: Alignment,
+        image: RasterImage,
+    },
 }
 
 impl Receipt {

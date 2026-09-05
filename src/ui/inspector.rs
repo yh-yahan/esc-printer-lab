@@ -34,6 +34,7 @@ impl InspectorViewer<'_> {
             Command::Underline(_) => egui::Color32::from_rgb(255, 120, 180),
             Command::Cut(_) => egui::Color32::from_rgb(255, 100, 100),
             Command::CharSize(_) => egui::Color32::from_rgb(100, 220, 160),
+            Command::RasterImage(_) => egui::Color32::from_rgb(80, 200, 220),
             Command::Unknown(_) => egui::Color32::from_rgb(255, 140, 80),
         }
     }

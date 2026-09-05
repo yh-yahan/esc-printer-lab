@@ -1,3 +1,5 @@
+use super::command::RasterScale;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParserState {
     Normal,
@@ -11,4 +13,15 @@ pub enum ParserState {
     Gs,
     GsCut,
     GsCharSize,
+    GsRasterZero,
+    GsRasterHeader {
+        bytes: Vec<u8>,
+    },
+    GsRasterData {
+        scale: RasterScale,
+        width_bytes: u16,
+        height: u16,
+        data: Vec<u8>,
+        remaining: usize,
+    },
 }

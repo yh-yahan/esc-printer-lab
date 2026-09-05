@@ -37,6 +37,15 @@ impl EscPosFormatter {
                 };
                 format!("GS V {n}")
             }
+            Command::RasterImage(image) => {
+                format!(
+                    "GS v 0 {} {}x{} ({} bytes)",
+                    image.scale.m(),
+                    image.width_dots(),
+                    image.height,
+                    image.data.len()
+                )
+            }
             Command::CharSize(size) => {
                 let n = ((size.width.saturating_sub(1) & 0x07) << 4)
                     | (size.height.saturating_sub(1) & 0x07);

@@ -1,6 +1,6 @@
 use eframe::egui::{self, Align2, FontId, Pos2, Rect, Stroke, Vec2};
 
-use crate::parser::command::{Alignment, CutMode, UnderlineMode};
+use crate::parser::command::{Alignment, CutMode, RasterImage, UnderlineMode};
 use crate::printer::{FontMetrics, PrinterProfile};
 use crate::receipt::receipt::{Receipt, ReceiptEvent, ReceiptItem, ReceiptLine, ReceiptSegment};
 
@@ -172,6 +172,9 @@ fn section_height_dots(items: &[&ReceiptItem], options: PreviewOptions) -> f32 {
                 height += *dots as f32;
             }
             ReceiptItem::Event(ReceiptEvent::Cut(_)) => {}
+            ReceiptItem::Event(ReceiptEvent::RasterImage { image, .. }) => {
+                height += image.printed_height_dots() as f32;
+            }
         }
     }
 
@@ -282,6 +285,96 @@ fn paint_row(
     }
 }
 
+fn raster_to_color_image(image: &RasterImage) -> egui::ColorImage {
+    let width = image.width_dots() as usize;
+    let height = image.height as usize;
+    let mut rgba = vec![0u8; width.saturating_mul(height).saturating_mul(4)];
+
+    for px in rgba.chunks_exact_mut(4) {
+        px[0] = 255;
+        px[1] = 250;
+        px[2] = 240;
+        px[3] = 255;
+    }
+
+    let row_bytes = image.width_bytes as usize;
+    for y in 0..height {
+        for xb in 0..row_bytes {
+            let byte = image
+                .data
+                .get(y.saturating_mul(row_bytes) + xb)
+                .copied()
+                .unwrap_or(0);
+            for bit in 0..8 {
+                if byte & (0x80 >> bit) == 0 {
+                    continue;
+                }
+                let x = xb * 8 + bit;
+                if x >= width {
+                    continue;
+                }
+                let i = (y * width + x) * 4;
+                if i + 3 < rgba.len() {
+                    rgba[i] = 20;
+                    rgba[i + 1] = 20;
+                    rgba[i + 2] = 20;
+                    rgba[i + 3] = 255;
+                }
+            }
+        }
+    }
+
+    egui::ColorImage::from_rgba_unmultiplied([width, height], &rgba)
+}
+
+fn paint_raster(
+    ui: &egui::Ui,
+    painter: &egui::Painter,
+    origin: Pos2,
+    y_dots: f32,
+    alignment: Alignment,
+    image: &RasterImage,
+    options: PreviewOptions,
+) {
+    let src_w = image.width_dots();
+    let src_h = image.height as u32;
+    if src_w == 0 || src_h == 0 || image.data.is_empty() {
+        return;
+    }
+
+    let printed_w = image.printed_width_dots() as u16;
+    let printed_h = image.printed_height_dots() as f32;
+    let x0 = align_offset_dots(
+        alignment,
+        printed_w.min(options.profile.printable_dots),
+        options.profile.printable_dots,
+    );
+    let dest = Rect::from_min_size(
+        Pos2::new(
+            origin.x + options.margin_px() + options.dots_to_px(x0),
+            origin.y + options.dots_to_px(y_dots),
+        ),
+        Vec2::new(options.dots_to_px(printed_w as f32), options.dots_to_px(printed_h)),
+    );
+
+    let hash = image
+        .data
+        .iter()
+        .fold(0u32, |acc, byte| acc.wrapping_mul(16777619) ^ u32::from(*byte));
+    let texture = ui.ctx().load_texture(
+        format!("gs-v0-{src_w}x{src_h}-{hash}"),
+        raster_to_color_image(image),
+        egui::TextureOptions::NEAREST,
+    );
+
+    painter.image(
+        texture.id(),
+        dest,
+        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+        egui::Color32::WHITE,
+    );
+}
+
 fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem], options: PreviewOptions) {
     let paper_w = options.paper_px();
     let paper_h = options
@@ -334,6 +427,18 @@ fn render_paper_section(ui: &mut egui::Ui, items: &[&ReceiptItem], options: Prev
                 y_dots += *dots as f32;
             }
             ReceiptItem::Event(ReceiptEvent::Cut(_)) => {}
+            ReceiptItem::Event(ReceiptEvent::RasterImage { alignment, image }) => {
+                paint_raster(
+                    ui,
+                    &content_painter,
+                    rect.min,
+                    y_dots,
+                    *alignment,
+                    image,
+                    options,
+                );
+                y_dots += image.printed_height_dots() as f32;
+            }
         }
     }
 }
@@ -348,7 +453,8 @@ pub fn render_receipt(ui: &mut egui::Ui, receipt: &Receipt, options: PreviewOpti
             match item {
                 ReceiptItem::Line(_)
                 | ReceiptItem::Event(ReceiptEvent::FeedLines { .. })
-                | ReceiptItem::Event(ReceiptEvent::FeedDots { .. }) => {
+                | ReceiptItem::Event(ReceiptEvent::FeedDots { .. })
+                | ReceiptItem::Event(ReceiptEvent::RasterImage { .. }) => {
                     section.push(item);
                 }
 
