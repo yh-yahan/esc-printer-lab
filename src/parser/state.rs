@@ -1,4 +1,4 @@
-use super::command::RasterScale;
+use super::command::{BarcodeSymbology, RasterScale};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParserState {
@@ -15,6 +15,23 @@ pub enum ParserState {
     Gs,
     GsCut,
     GsCharSize,
+    GsHriPosition,
+    GsHriFont,
+    GsBarWidth,
+    GsBarHeight,
+    GsBarcode,
+    GsBarcodeNul {
+        m: u8,
+        symbology: BarcodeSymbology,
+        data: Vec<u8>,
+    },
+    GsBarcodeLen {
+        m: u8,
+        symbology: BarcodeSymbology,
+        n: Option<u8>,
+        data: Vec<u8>,
+        remaining: usize,
+    },
     GsRasterZero,
     GsRasterHeader {
         bytes: Vec<u8>,

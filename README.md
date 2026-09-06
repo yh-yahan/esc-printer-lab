@@ -24,6 +24,11 @@ Currently supported commands:
 | Cut | `GS V n` | Full or partial cut |
 | Raster image | `GS v 0` | Raster bit image |
 | QR model / size / ECC / store / print | `GS ( k` | QR Code setup and print |
+| Barcode HRI position | `GS H n` | Off / above / below / both |
+| Barcode HRI font | `GS f n` | Font A / Font B |
+| Barcode width | `GS w n` | Module width 2–6 |
+| Barcode height | `GS h n` | Bar height in dots |
+| Print barcode | `GS k` | UPC-A/E, EAN-13/8, CODE39, ITF, CODABAR, CODE93, CODE128 |
 | Line feed | `LF` (`0x0A`) | Print and advance one line |
 | Carriage return | `CR` (`0x0D`) | Return to start of line |
 | Code page | `ESC t n` | Select character code table |

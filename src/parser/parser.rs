@@ -1,6 +1,6 @@
 use super::command::{
-    Alignment, CharSize, Command, CutMode, QrCommand, QrEcLevel, RasterImage, RasterScale,
-    UnderlineMode,
+    Alignment, BarcodeCommand, BarcodeSymbology, CharSize, Command, CutMode, HriFont, HriPosition,
+    QrCommand, QrEcLevel, RasterImage, RasterScale, UnderlineMode,
 };
 use super::state::ParserState;
 
@@ -12,6 +12,7 @@ use crate::shared::print_session::ParsedCommand;
 
 const MAX_RASTER_BYTES: usize = 2 * 1024 * 1024;
 const MAX_GS_PAREN_BYTES: usize = 2 * 1024 * 1024;
+const MAX_BARCODE_BYTES: usize = 1024;
 
 pub struct Parser {
     state: ParserState,
@@ -107,6 +108,25 @@ impl Parser {
                 ..
             } => {
                 let mut raw = vec![0x1D, 0x28, *ident, *p_l, *p_h];
+                raw.extend_from_slice(data);
+                raw
+            }
+            ParserState::GsBarcode => vec![0x1D, 0x6B],
+            ParserState::GsBarcodeNul { m, data, .. } => {
+                let mut raw = vec![0x1D, 0x6B, *m];
+                raw.extend_from_slice(data);
+                raw
+            }
+            ParserState::GsBarcodeLen {
+                m,
+                n,
+                data,
+                ..
+            } => {
+                let mut raw = vec![0x1D, 0x6B, *m];
+                if let Some(n) = n {
+                    raw.push(*n);
+                }
                 raw.extend_from_slice(data);
                 raw
             }
@@ -208,6 +228,13 @@ impl Parser {
             ParserState::Gs => self.handle_gs(byte, commands),
             ParserState::GsCut => self.handle_gs_cut(byte, commands),
             ParserState::GsCharSize => self.handle_gs_char_size(byte, commands),
+            ParserState::GsHriPosition => self.handle_gs_hri_position(byte, commands),
+            ParserState::GsHriFont => self.handle_gs_hri_font(byte, commands),
+            ParserState::GsBarWidth => self.handle_gs_bar_width(byte, commands),
+            ParserState::GsBarHeight => self.handle_gs_bar_height(byte, commands),
+            ParserState::GsBarcode => self.handle_gs_barcode(byte, commands),
+            ParserState::GsBarcodeNul { .. } => self.handle_gs_barcode_nul(byte, commands),
+            ParserState::GsBarcodeLen { .. } => self.handle_gs_barcode_len(byte, commands),
             ParserState::GsRasterZero => self.handle_gs_raster_zero(byte, commands),
             ParserState::GsRasterHeader { .. } => self.handle_gs_raster_header(byte, commands),
             ParserState::GsRasterData { .. } => self.handle_gs_raster_data(byte, commands),
@@ -474,6 +501,26 @@ impl Parser {
                 self.state = ParserState::GsCut;
             }
 
+            0x48 => {
+                self.state = ParserState::GsHriPosition;
+            }
+
+            0x66 => {
+                self.state = ParserState::GsHriFont;
+            }
+
+            0x77 => {
+                self.state = ParserState::GsBarWidth;
+            }
+
+            0x68 => {
+                self.state = ParserState::GsBarHeight;
+            }
+
+            0x6B => {
+                self.state = ParserState::GsBarcode;
+            }
+
             0x76 => {
                 self.state = ParserState::GsRasterZero;
             }
@@ -530,6 +577,171 @@ impl Parser {
             commands,
         );
 
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_hri_position(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        if let Some(position) = HriPosition::from_n(byte) {
+            self.push_command(
+                Command::Barcode(BarcodeCommand::SetHriPosition(position)),
+                self.offset + 1,
+                commands,
+            );
+        } else {
+            self.push_unknown(vec![0x1D, 0x48, byte], commands);
+        }
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_hri_font(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+
+        if let Some(font) = HriFont::from_n(byte) {
+            self.push_command(
+                Command::Barcode(BarcodeCommand::SetHriFont(font)),
+                self.offset + 1,
+                commands,
+            );
+        } else {
+            self.push_unknown(vec![0x1D, 0x66, byte], commands);
+        }
+
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_bar_width(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+        self.push_command(
+            Command::Barcode(BarcodeCommand::SetWidth(byte)),
+            self.offset + 1,
+            commands,
+        );
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_bar_height(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        self.flush_text(commands);
+        self.push_command(
+            Command::Barcode(BarcodeCommand::SetHeight(byte)),
+            self.offset + 1,
+            commands,
+        );
+        self.state = ParserState::Normal;
+    }
+
+    fn handle_gs_barcode(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        let Some(symbology) = BarcodeSymbology::from_m(byte) else {
+            self.flush_text(commands);
+            self.push_unknown(vec![0x1D, 0x6B, byte], commands);
+            self.state = ParserState::Normal;
+            return;
+        };
+
+        if BarcodeSymbology::is_function_a(byte) {
+            self.state = ParserState::GsBarcodeNul {
+                m: byte,
+                symbology,
+                data: Vec::new(),
+            };
+        } else {
+            self.state = ParserState::GsBarcodeLen {
+                m: byte,
+                symbology,
+                n: None,
+                data: Vec::new(),
+                remaining: 0,
+            };
+        }
+    }
+
+    fn handle_gs_barcode_nul(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        if byte == 0x00 {
+            let finished = {
+                let ParserState::GsBarcodeNul { m, symbology, data } = &mut self.state else {
+                    return;
+                };
+                Some((*m, *symbology, std::mem::take(data)))
+            };
+            let Some((m, symbology, data)) = finished else {
+                return;
+            };
+
+            self.flush_text(commands);
+            self.push_command(
+                Command::Barcode(BarcodeCommand::Print {
+                    m,
+                    symbology,
+                    data,
+                }),
+                self.offset + 1,
+                commands,
+            );
+            self.state = ParserState::Normal;
+            return;
+        }
+
+        let overflow = {
+            let ParserState::GsBarcodeNul { data, .. } = &mut self.state else {
+                return;
+            };
+            data.push(byte);
+            data.len() > MAX_BARCODE_BYTES
+        };
+
+        if overflow {
+            self.flush_incomplete(commands);
+        }
+    }
+
+    fn handle_gs_barcode_len(&mut self, byte: u8, commands: &mut Vec<ParsedCommand>) {
+        let finished = {
+            let ParserState::GsBarcodeLen {
+                m,
+                symbology,
+                n,
+                data,
+                remaining,
+            } = &mut self.state
+            else {
+                return;
+            };
+
+            if n.is_none() {
+                *n = Some(byte);
+                *remaining = byte as usize;
+                if byte == 0 {
+                    Some((*m, *symbology, Vec::new()))
+                } else {
+                    None
+                }
+            } else {
+                data.push(byte);
+                *remaining = remaining.saturating_sub(1);
+                if *remaining == 0 {
+                    Some((*m, *symbology, std::mem::take(data)))
+                } else {
+                    None
+                }
+            }
+        };
+
+        let Some((m, symbology, data)) = finished else {
+            return;
+        };
+
+        self.flush_text(commands);
+        self.push_command(
+            Command::Barcode(BarcodeCommand::Print {
+                m,
+                symbology,
+                data,
+            }),
+            self.offset + 1,
+            commands,
+        );
         self.state = ParserState::Normal;
     }
 

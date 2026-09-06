@@ -1,11 +1,17 @@
-use crate::parser::command::{Alignment, CharSize, Command, QrCommand, QrEcLevel, UnderlineMode};
+use crate::parser::command::{
+    Alignment, BarcodeCommand, CharSize, Command, HriFont, HriPosition, QrCommand, QrEcLevel,
+    UnderlineMode,
+};
 
+use super::barcode::{encode_barcode_raster, hri_text};
 use super::qr::encode_qr_raster;
 use super::receipt::{Receipt, ReceiptEvent, ReceiptLine, ReceiptSegment};
 
 const DEFAULT_LINE_SPACING: u8 = 30;
 const DEFAULT_QR_MODULE_SIZE: u8 = 3;
 const DEFAULT_QR_MODEL: u8 = 50;
+const DEFAULT_BARCODE_WIDTH: u8 = 3;
+const DEFAULT_BARCODE_HEIGHT: u8 = 162;
 
 pub struct ReceiptBuilder {
     current_bold: bool,
@@ -17,6 +23,10 @@ pub struct ReceiptBuilder {
     qr_module_size: u8,
     qr_ec_level: QrEcLevel,
     qr_data: Option<Vec<u8>>,
+    barcode_hri_position: HriPosition,
+    barcode_hri_font: HriFont,
+    barcode_width: u8,
+    barcode_height: u8,
     segments: Vec<ReceiptSegment>,
     receipt: Receipt,
 }
@@ -33,6 +43,10 @@ impl ReceiptBuilder {
             qr_module_size: DEFAULT_QR_MODULE_SIZE,
             qr_ec_level: QrEcLevel::L,
             qr_data: None,
+            barcode_hri_position: HriPosition::None,
+            barcode_hri_font: HriFont::A,
+            barcode_width: DEFAULT_BARCODE_WIDTH,
+            barcode_height: DEFAULT_BARCODE_HEIGHT,
             segments: Vec::new(),
             receipt: Receipt::new(),
         }
@@ -48,6 +62,10 @@ impl ReceiptBuilder {
         self.qr_module_size = DEFAULT_QR_MODULE_SIZE;
         self.qr_ec_level = QrEcLevel::L;
         self.qr_data = None;
+        self.barcode_hri_position = HriPosition::None;
+        self.barcode_hri_font = HriFont::A;
+        self.barcode_width = DEFAULT_BARCODE_WIDTH;
+        self.barcode_height = DEFAULT_BARCODE_HEIGHT;
     }
 
     pub fn process(&mut self, command: &Command) {
@@ -134,6 +152,8 @@ impl ReceiptBuilder {
 
             Command::Qr(qr) => self.process_qr(qr),
 
+            Command::Barcode(barcode) => self.process_barcode(barcode),
+
             Command::SelectCodePage { .. } | Command::SelectCharacterSet { .. } => {}
 
             Command::Unknown(_) => {}
@@ -170,6 +190,76 @@ impl ReceiptBuilder {
                 });
             }
         }
+    }
+
+    fn process_barcode(&mut self, barcode: &BarcodeCommand) {
+        match barcode {
+            BarcodeCommand::SetHriPosition(position) => {
+                self.barcode_hri_position = *position;
+            }
+            BarcodeCommand::SetHriFont(font) => {
+                self.barcode_hri_font = *font;
+            }
+            BarcodeCommand::SetWidth(width) => {
+                if (2..=6).contains(width) {
+                    self.barcode_width = *width;
+                }
+            }
+            BarcodeCommand::SetHeight(height) => {
+                if *height > 0 {
+                    self.barcode_height = *height;
+                }
+            }
+            BarcodeCommand::Print {
+                symbology, data, ..
+            } => {
+                let Some(image) = encode_barcode_raster(
+                    *symbology,
+                    data,
+                    self.barcode_width,
+                    self.barcode_height,
+                ) else {
+                    return;
+                };
+
+                self.flush_current_line();
+
+                let hri = hri_text(*symbology, data);
+                if self.barcode_hri_position.above() {
+                    if let Some(text) = hri.clone() {
+                        self.push_hri_line(text);
+                    }
+                }
+
+                self.receipt.add_event(ReceiptEvent::RasterImage {
+                    alignment: self.current_alignment,
+                    image,
+                });
+
+                if self.barcode_hri_position.below() {
+                    if let Some(text) = hri {
+                        self.push_hri_line(text);
+                    }
+                }
+            }
+        }
+    }
+
+    fn push_hri_line(&mut self, text: String) {
+        let _font = self.barcode_hri_font;
+        self.receipt.add_line(ReceiptLine {
+            alignment: self.current_alignment,
+            segments: vec![ReceiptSegment {
+                text,
+                bold: false,
+                underline: UnderlineMode::Off,
+                char_size: CharSize {
+                    width: 1,
+                    height: 1,
+                },
+            }],
+            spacing: self.current_line_spacing,
+        });
     }
 
     pub fn process_commands(&mut self, commands: Vec<Command>) {

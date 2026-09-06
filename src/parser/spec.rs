@@ -1,4 +1,6 @@
-use super::command::{Alignment, Command, CutMode, QrCommand, RasterScale, UnderlineMode};
+use super::command::{
+    Alignment, BarcodeCommand, Command, CutMode, QrCommand, RasterScale, UnderlineMode,
+};
 use crate::printer::codepage::{character_set_name, CodePage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +81,7 @@ impl Command {
                 category: CommandCategory::Layout,
             },
             Command::Qr(qr) => qr_spec(qr),
+            Command::Barcode(barcode) => barcode_spec(barcode),
             Command::CharSize(_) => CommandSpec {
                 name: "Select character size",
                 mnemonic: "GS ! n",
@@ -234,6 +237,31 @@ impl Command {
                 QrCommand::Store { data } => vec![format!("{} data byte(s)", data.len())],
                 QrCommand::Print => vec!["prints the stored QR symbol".into()],
             },
+            Command::Barcode(barcode) => match barcode {
+                BarcodeCommand::SetHriPosition(position) => vec![format!(
+                    "n = {}  {}",
+                    position.n(),
+                    position.name()
+                )],
+                BarcodeCommand::SetHriFont(font) => vec![format!(
+                    "n = {}  Font {}",
+                    font.n(),
+                    match font {
+                        crate::parser::command::HriFont::A => "A",
+                        crate::parser::command::HriFont::B => "B",
+                    }
+                )],
+                BarcodeCommand::SetWidth(n) => vec![format!("n = {n}  module width")],
+                BarcodeCommand::SetHeight(n) => vec![format!("n = {n}  bar height in dots")],
+                BarcodeCommand::Print {
+                    m,
+                    symbology,
+                    data,
+                } => vec![
+                    format!("m = {m}  {}", symbology.name()),
+                    format!("{} data byte(s)", data.len()),
+                ],
+            },
             Command::Text(text) => vec![format!("{} character(s)", text.chars().count())],
             Command::SelectCodePage { n, applied } => {
                 let status = if *applied { "applied" } else { "ignored" };
@@ -299,6 +327,56 @@ fn qr_spec(qr: &QrCommand) -> CommandSpec {
             summary: "Encodes and prints the stored QR Code.",
             notes: "Uses the current model, module size, and error-correction settings. Alignment follows ESC a.",
             docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lparen_lk_fn181.html"),
+            category: CommandCategory::Layout,
+        },
+    }
+}
+
+fn barcode_spec(barcode: &BarcodeCommand) -> CommandSpec {
+    match barcode {
+        BarcodeCommand::SetHriPosition(_) => CommandSpec {
+            name: "Select print position of HRI characters",
+            mnemonic: "GS H n",
+            hex: "1D 48 n",
+            summary: "Sets whether human-readable barcode text is printed above, below, both, or not at all.",
+            notes: "Accepts both binary values (0-3) and ASCII digits ('0'-'3'). Default is not printed.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_ch.html"),
+            category: CommandCategory::Layout,
+        },
+        BarcodeCommand::SetHriFont(_) => CommandSpec {
+            name: "Select font for HRI characters",
+            mnemonic: "GS f n",
+            hex: "1D 66 n",
+            summary: "Selects Font A or Font B for barcode HRI text.",
+            notes: "Accepts 0/48 for Font A and 1/49 for Font B. The preview currently renders both as the same text face.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lf.html"),
+            category: CommandCategory::Layout,
+        },
+        BarcodeCommand::SetWidth(_) => CommandSpec {
+            name: "Set barcode width",
+            mnemonic: "GS w n",
+            hex: "1D 77 n",
+            summary: "Sets the barcode module width.",
+            notes: "Valid range is 2 to 6. Values outside that range are ignored and the previous width stays active. Default is 3.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lw.html"),
+            category: CommandCategory::Layout,
+        },
+        BarcodeCommand::SetHeight(_) => CommandSpec {
+            name: "Set barcode height",
+            mnemonic: "GS h n",
+            hex: "1D 68 n",
+            summary: "Sets barcode bar height in dots.",
+            notes: "n = 0 is ignored. Default height is 162 dots.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lh.html"),
+            category: CommandCategory::Layout,
+        },
+        BarcodeCommand::Print { .. } => CommandSpec {
+            name: "Print barcode",
+            mnemonic: "GS k",
+            hex: "1D 6B m [n] d1...dk",
+            summary: "Prints a 1D barcode. Function A is NUL-terminated (m = 0-6). Function B has an explicit length byte (m = 65-73).",
+            notes: "Supported: UPC-A, UPC-E, EAN-13, EAN-8, CODE39, ITF, CODABAR, CODE93, CODE128. CODE128 data may start with {A}, {B}, or {C}. Alignment follows ESC a.",
+            docs_url: Some("https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lk.html"),
             category: CommandCategory::Layout,
         },
     }

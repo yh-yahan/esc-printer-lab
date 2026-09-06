@@ -17,6 +17,7 @@ pub enum Command {
     CharSize(CharSize),
     RasterImage(RasterImage),
     Qr(QrCommand),
+    Barcode(BarcodeCommand),
     Unknown(Vec<u8>),
 }
 
@@ -156,4 +157,134 @@ pub enum QrCommand {
     SetErrorCorrection { level: QrEcLevel },
     Store { data: Vec<u8> },
     Print,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarcodeSymbology {
+    UpcA,
+    UpcE,
+    Ean13,
+    Ean8,
+    Code39,
+    Itf,
+    Codabar,
+    Code93,
+    Code128,
+}
+
+impl BarcodeSymbology {
+    pub fn from_m(m: u8) -> Option<Self> {
+        match m {
+            0 | 65 => Some(Self::UpcA),
+            1 | 66 => Some(Self::UpcE),
+            2 | 67 => Some(Self::Ean13),
+            3 | 68 => Some(Self::Ean8),
+            4 | 69 => Some(Self::Code39),
+            5 | 70 => Some(Self::Itf),
+            6 | 71 => Some(Self::Codabar),
+            72 => Some(Self::Code93),
+            73 => Some(Self::Code128),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::UpcA => "UPC-A",
+            Self::UpcE => "UPC-E",
+            Self::Ean13 => "EAN-13",
+            Self::Ean8 => "EAN-8",
+            Self::Code39 => "CODE39",
+            Self::Itf => "ITF",
+            Self::Codabar => "CODABAR",
+            Self::Code93 => "CODE93",
+            Self::Code128 => "CODE128",
+        }
+    }
+
+    pub fn is_function_a(m: u8) -> bool {
+        matches!(m, 0..=6)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HriPosition {
+    None,
+    Above,
+    Below,
+    Both,
+}
+
+impl HriPosition {
+    pub fn from_n(n: u8) -> Option<Self> {
+        match n {
+            0 | 48 => Some(Self::None),
+            1 | 49 => Some(Self::Above),
+            2 | 50 => Some(Self::Below),
+            3 | 51 => Some(Self::Both),
+            _ => None,
+        }
+    }
+
+    pub fn n(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Above => 1,
+            Self::Below => 2,
+            Self::Both => 3,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::None => "not printed",
+            Self::Above => "above",
+            Self::Below => "below",
+            Self::Both => "above and below",
+        }
+    }
+
+    pub fn above(self) -> bool {
+        matches!(self, Self::Above | Self::Both)
+    }
+
+    pub fn below(self) -> bool {
+        matches!(self, Self::Below | Self::Both)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HriFont {
+    A,
+    B,
+}
+
+impl HriFont {
+    pub fn from_n(n: u8) -> Option<Self> {
+        match n {
+            0 | 48 => Some(Self::A),
+            1 | 49 => Some(Self::B),
+            _ => None,
+        }
+    }
+
+    pub fn n(self) -> u8 {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BarcodeCommand {
+    SetHriPosition(HriPosition),
+    SetHriFont(HriFont),
+    SetWidth(u8),
+    SetHeight(u8),
+    Print {
+        m: u8,
+        symbology: BarcodeSymbology,
+        data: Vec<u8>,
+    },
 }

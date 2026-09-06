@@ -39,6 +39,7 @@ impl InspectorViewer<'_> {
             Command::CharSize(_) => egui::Color32::from_rgb(100, 220, 160),
             Command::RasterImage(_) => egui::Color32::from_rgb(80, 200, 220),
             Command::Qr(_) => egui::Color32::from_rgb(120, 160, 255),
+            Command::Barcode(_) => egui::Color32::from_rgb(90, 200, 140),
             Command::Unknown(_) => egui::Color32::from_rgb(255, 140, 80),
         }
     }

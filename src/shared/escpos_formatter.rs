@@ -1,4 +1,4 @@
-use crate::parser::command::{Alignment, Command, CutMode, QrCommand, UnderlineMode};
+use crate::parser::command::{Alignment, BarcodeCommand, Command, CutMode, QrCommand, UnderlineMode};
 
 pub struct EscPosFormatter;
 
@@ -74,6 +74,21 @@ impl EscPosFormatter {
                     format!("GS ( k fn80 store {} byte(s)", data.len())
                 }
                 QrCommand::Print => "GS ( k fn81 print".into(),
+            },
+            Command::Barcode(barcode) => match barcode {
+                BarcodeCommand::SetHriPosition(position) => {
+                    format!("GS H {} ({})", position.n(), position.name())
+                }
+                BarcodeCommand::SetHriFont(font) => {
+                    format!("GS f {}", font.n())
+                }
+                BarcodeCommand::SetWidth(n) => format!("GS w {n}"),
+                BarcodeCommand::SetHeight(n) => format!("GS h {n}"),
+                BarcodeCommand::Print {
+                    m,
+                    symbology,
+                    data,
+                } => format!("GS k {m} {} ({} bytes)", symbology.name(), data.len()),
             },
             Command::CharSize(size) => {
                 let n = ((size.width.saturating_sub(1) & 0x07) << 4)
