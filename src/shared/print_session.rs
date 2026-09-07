@@ -53,6 +53,15 @@ impl PrintSession {
         self.receipts.len() + usize::from(!self.current.items.is_empty())
     }
 
+    pub fn combined_receipt(&self) -> Receipt {
+        let mut items = Vec::new();
+        for receipt in &self.receipts {
+            items.extend(receipt.items.iter().cloned());
+        }
+        items.extend(self.current.items.iter().cloned());
+        Receipt { items }
+    }
+
     pub fn clear(&mut self) {
         self.raw.clear();
         self.commands.clear();

@@ -3,8 +3,8 @@ use egui_dock::{DockArea, DockState, Style, TabViewer};
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
+use crate::export::{self, ExportError};
 use crate::printer::PrinterProfile;
-use crate::receipt::receipt::Receipt;
 use crate::shared::print_session::PrintSession;
 use crate::ui::inspector::{InspectorTab, InspectorViewer};
 use crate::ui::receipt_view::{render_receipt, PreviewOptions};
@@ -54,6 +54,7 @@ pub struct App {
     dock_state: DockState<AppTab>,
     hovered_span: Option<Range<usize>>,
     preview: PreviewState,
+    export_status: Option<String>,
 }
 
 impl App {
@@ -81,6 +82,38 @@ impl App {
             dock_state,
             hovered_span: None,
             preview: PreviewState::new(),
+            export_status: None,
+        }
+    }
+
+    fn export_file(&self, format: &str) -> String {
+        let (receipt, profile) = {
+            let session = self.session.lock().unwrap();
+            (session.combined_receipt(), self.preview.profile)
+        };
+
+        let Some(mut path) = export::pick_save_path(
+            &format!("Export {}", format.to_uppercase()),
+            format,
+            if format == "png" { "PNG image" } else { "PDF document" },
+        ) else {
+            return "Export canceled.".to_string();
+        };
+
+        if path.extension().is_none() {
+            path.set_extension(format);
+        }
+
+        let image = export::render_receipt(&receipt, profile);
+        let result = match format {
+            "png" => export::save_png(&path, &image),
+            "pdf" => export::save_pdf(&path, &image, profile),
+            _ => Err(ExportError::Encode(format!("unknown export format: {format}"))),
+        };
+
+        match result {
+            Ok(()) => format!("Saved {}", path.display()),
+            Err(err) => format!("Export failed: {err}"),
         }
     }
 }
@@ -195,14 +228,7 @@ impl AppViewer<'_> {
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 let session = self.session.lock().unwrap();
-                let mut items = Vec::new();
-
-                for receipt in &session.receipts {
-                    items.extend(receipt.items.iter().cloned());
-                }
-                items.extend(session.current.items.iter().cloned());
-
-                render_receipt(ui, &Receipt { items }, options);
+                render_receipt(ui, &session.combined_receipt(), options);
             });
     }
 }
@@ -226,9 +252,27 @@ impl eframe::App for App {
                 if ui.add(clear_button).clicked() {
                     self.session.lock().unwrap().clear();
                     self.hovered_span = None;
+                    self.export_status = None;
+                }
+
+                if ui.button("Export PDF").clicked() {
+                    self.export_status = Some(self.export_file("pdf"));
+                }
+
+                if ui.button("Export PNG").clicked() {
+                    self.export_status = Some(self.export_file("png"));
                 }
             });
         });
+
+        if let Some(status) = &self.export_status {
+            ui.add_space(2.0);
+            ui.label(
+                egui::RichText::new(status)
+                    .small()
+                    .color(egui::Color32::from_gray(180)),
+            );
+        }
 
         ui.separator();
 

@@ -7,3 +7,7 @@ edition = "2024"
 eframe = "0.34.2"
 egui_dock = "0.19"
 qrcode = { version = "0.14", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+flate2 = "1"
+rfd = "0.15"
+font8x8 = "0.3"
